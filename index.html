@@ -222,30 +222,43 @@
     let currentCardIndex = -1;
 
     // Login logic
-    async function login() {
-        const usernameInput = document.getElementById('login-username').value.trim();
-        const passwordInput = document.getElementById('login-password').value.trim();
+   async function login() {
+    const usernameInput = document.getElementById('login-username').value.trim();
+    const passwordInput = document.getElementById('login-password').value.trim();
 
+    if (!usernameInput || !passwordInput) {
+        alert("Please enter both username and password.");
+        return;
+    }
+
+    try {
         const { data, error } = await supabase
             .from('app_users')
             .select('*')
             .eq('username', usernameInput)
             .eq('password', passwordInput)
-            .single();
+            .maybeSingle();
 
-        if (error || !data) {
-            alert('Invalid username or password!');
+        if (error) {
+            alert('Supabase Connection Error: ' + error.message);
+            return;
+        }
+
+        if (!data) {
+            alert('Invalid username or password. Check for uppercase letters!');
             return;
         }
 
         currentUser = data;
-        document.getElementById('user-display').textContent = `User: ${currentUser.username}`;
+        document.getElementById('user-display').textContent = currentUser.username;
         document.getElementById('view-login').classList.add('hidden');
         document.getElementById('view-app').classList.remove('hidden');
 
         await fetchDecks();
+    } catch (e) {
+        alert("Error logging in: " + e.message);
     }
-
+}
     function logout() {
         currentUser = null;
         document.getElementById('view-app').classList.add('hidden');
