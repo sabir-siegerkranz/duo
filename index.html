@@ -2,113 +2,108 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DuoCards - Supabase Edition</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DuoCards Mobile</title>
     <style>
         :root {
             --primary: #00a8ff;
             --success: #2ed573;
             --warning: #ffa502;
-            --bg: #f5f6fa;
+            --danger: #ff4757;
+            --bg: #f4f6f9;
             --card-bg: #ffffff;
             --text: #2f3542;
         }
 
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg);
             color: var(--text);
             margin: 0;
-            padding: 20px;
+            padding: 12px;
             display: flex;
             justify-content: center;
+            min-height: 100vh;
         }
 
-        .container {
-            width: 100%;
-            max-width: 500px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
+        .container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 12px; }
         .hidden { display: none !important; }
 
         .card-box {
             background: var(--card-bg);
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            padding: 16px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+        .header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 
         select, button, input {
-            font-size: 14px;
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid #ddd;
+            font-size: 15px;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
             outline: none;
+            width: 100%;
         }
 
         button {
             background-color: var(--primary);
             color: white;
             border: none;
-            cursor: pointer;
             font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        button:hover { opacity: 0.9; }
+        button:active { transform: scale(0.98); opacity: 0.9; }
 
-        .nav-tabs { display: flex; gap: 10px; }
-        .nav-tabs button { flex: 1; background-color: #e0e0e0; color: var(--text); }
+        .nav-tabs { display: flex; gap: 8px; }
+        .nav-tabs button { flex: 1; background-color: #e2e8f0; color: var(--text); font-size: 14px; padding: 10px; }
         .nav-tabs button.active { background-color: var(--primary); color: white; }
 
-        /* Flashcard Styles */
-        .flashcard-container { perspective: 1000px; height: 220px; margin: 15px 0; }
+        .flashcard-container { perspective: 1000px; height: 240px; margin: 10px 0; }
         .flashcard {
             width: 100%; height: 100%; position: relative;
-            transform-style: preserve-3d; transition: transform 0.6s; cursor: pointer;
+            transform-style: preserve-3d; transition: transform 0.5s; cursor: pointer;
         }
         .flashcard.flipped { transform: rotateY(180deg); }
         .card-face {
             position: absolute; width: 100%; height: 100%;
             backface-visibility: hidden; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; border-radius: 12px;
-            border: 2px solid #eee; background: white; padding: 20px; box-sizing: border-box; text-align: center;
+            justify-content: center; align-items: center; border-radius: 16px;
+            border: 1px solid #e1e8ed; background: white; padding: 20px; box-sizing: border-box; text-align: center;
         }
-        .card-back { transform: rotateY(180deg); background-color: #f8f9fa; }
-        .card-word { font-size: 24px; font-weight: bold; margin-bottom: 8px; }
-        .card-example { font-size: 14px; color: #666; font-style: italic; }
+        .card-back { transform: rotateY(180deg); background-color: #f8fafc; }
+        .card-word { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+        .card-example { font-size: 14px; color: #64748b; font-style: italic; }
 
         .controls { display: flex; gap: 10px; }
-        .controls button { flex: 1; padding: 12px; }
-        .btn-again { background-color: #ff4757; }
+        .controls button { flex: 1; padding: 14px; font-size: 16px; border-radius: 12px; }
+        .btn-again { background-color: var(--danger); }
         .btn-good { background-color: var(--success); }
 
-        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+        .form-group label { font-size: 13px; font-weight: 600; color: #64748b; }
 
-        /* Stats */
-        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; text-align: center; }
-        .stat-box { padding: 10px; border-radius: 8px; background: #f8f9fa; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; text-align: center; }
+        .stat-box { padding: 12px 6px; border-radius: 10px; background: #f8fafc; }
         .stat-box.to-learn { border-top: 4px solid var(--primary); }
         .stat-box.practiced { border-top: 4px solid var(--warning); }
         .stat-box.learned { border-top: 4px solid var(--success); }
-        .stat-number { font-size: 18px; font-weight: bold; }
+        .stat-number { font-size: 20px; font-weight: bold; margin-top: 4px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <!-- LOGIN VIEW -->
-    <div id="view-login" class="card-box">
-        <h2>Sign In</h2>
+    <div id="view-login" class="card-box" style="text-align: center;">
+        <h2 style="margin-top: 0;">Sign In</h2>
         <div class="form-group">
             <label>Username</label>
             <input type="text" id="login-username" placeholder="Orkhan or Aziz">
@@ -117,25 +112,25 @@
             <label>Password</label>
             <input type="password" id="login-password">
         </div>
-        <button style="width: 100%; padding: 10px;" onclick="login()">Log In</button>
+        <button id="login-btn" style="margin-top: 10px; padding: 14px;" onclick="login()">Log In</button>
     </div>
 
     <!-- APP VIEW -->
-    <div id="view-app" class="hidden" style="display: flex; flex-direction: column; gap: 15px;">
+    <div id="view-app" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
         <div class="card-box header">
-            <div>
-                <span id="user-display" style="font-weight: bold;"></span>
-                <button style="background: none; color: #888; border: none; padding: 0 0 0 10px;" onclick="logout()">(logout)</button>
+            <div style="flex: 1;">
+                <span id="user-display" style="font-weight: bold; font-size: 14px;"></span>
+                <button style="background: none; color: #94a3b8; border: none; padding: 0; font-size: 12px; width: auto; display: inline;" onclick="logout()">(logout)</button>
             </div>
-            <div>
-                <select id="deckSelector" onchange="switchDeck()"></select>
-                <button onclick="createNewDeck()">+ Deck</button>
+            <div style="flex: 1.2; display: flex; gap: 4px;">
+                <select id="deckSelector" onchange="switchDeck()" style="padding: 6px;"></select>
+                <button onclick="createNewDeck()" style="width: auto; padding: 6px 10px;">+</button>
             </div>
         </div>
 
         <div class="nav-tabs">
             <button id="tab-practice" class="active" onclick="showTab('practice')">Practice</button>
-            <button id="tab-add" onclick="showTab('add')">Add Word</button>
+            <button id="tab-add" onclick="showTab('add')">Add</button>
             <button id="tab-stats" onclick="showTab('stats')">Progress</button>
         </div>
 
@@ -146,7 +141,7 @@
                     <div class="flashcard" id="card" onclick="flipCard()">
                         <div class="card-face card-front">
                             <div class="card-word" id="front-text">Loading...</div>
-                            <div class="card-example" id="front-subtext">Click to flip</div>
+                            <div class="card-example" id="front-subtext">Tap to flip</div>
                         </div>
                         <div class="card-face card-back">
                             <div class="card-word" id="back-text">...</div>
@@ -156,18 +151,18 @@
                 </div>
 
                 <div class="controls">
-                    <button class="btn-again" onclick="rateCard(false)">Forgot / Again</button>
+                    <button class="btn-again" onclick="rateCard(false)">Again</button>
                     <button class="btn-good" onclick="rateCard(true)">Got it!</button>
                 </div>
             </div>
-            <div id="empty-state" class="hidden" style="text-align: center; padding: 30px 0;">
-                🎉 Deck is empty or completely practiced! Add more cards.
+            <div id="empty-state" class="hidden" style="text-align: center; padding: 40px 0;">
+                🎉 All cards in this deck are completed!
             </div>
         </div>
 
         <!-- ADD WORD SECTION -->
         <div id="section-add" class="card-box section hidden">
-            <h3>Add New Card</h3>
+            <h3 style="margin-top:0;">Add New Card</h3>
             <div class="form-group">
                 <label>German Word/Phrase:</label>
                 <input type="text" id="input-de">
@@ -176,7 +171,7 @@
                 <label>English Translation:</label>
                 <input type="text" id="input-en">
             </div>
-            <button style="width: 100%; margin-bottom: 10px; background-color: #70a1ff;" onclick="autoTranslate()">⚡ Auto-Translate & Generate Example</button>
+            <button style="margin-bottom: 12px; background-color: #3b82f6;" onclick="autoTranslateAPI()">⚡ Auto-Translate</button>
             <div class="form-group">
                 <label>Example Sentence (German):</label>
                 <input type="text" id="input-ex-de">
@@ -185,23 +180,23 @@
                 <label>Example Sentence (English):</label>
                 <input type="text" id="input-ex-en">
             </div>
-            <button style="width: 100%;" onclick="addCard()">Save Card</button>
+            <button onclick="addCard()">Save Card</button>
         </div>
 
         <!-- STATS SECTION -->
         <div id="section-stats" class="card-box section hidden">
-            <h3>Deck Progress</h3>
+            <h3 style="margin-top:0;">Learning Progress</h3>
             <div class="stats-grid">
                 <div class="stat-box to-learn">
-                    <div>📚 To Learn</div>
+                    <div style="font-size:12px;">📚 To Learn</div>
                     <div class="stat-number" id="count-to-learn">0</div>
                 </div>
                 <div class="stat-box practiced">
-                    <div>⏱️ Practiced</div>
+                    <div style="font-size:12px;">⏱️ Practiced</div>
                     <div class="stat-number" id="count-practiced">0</div>
                 </div>
                 <div class="stat-box learned">
-                    <div>🎉 Learned</div>
+                    <div style="font-size:12px;">🎉 Learned</div>
                     <div class="stat-number" id="count-learned">0</div>
                 </div>
             </div>
@@ -210,10 +205,15 @@
 </div>
 
 <script>
-    // Supabase Configuration
-    const SUPABASE_URL = "https://wmvyujfggczdyexrifkk.supabase.co";
-    const SUPABASE_ANON_KEY = "sb_publishable_UR1kiYuEB-m2FeEFc-w5AQ_GU5rpo-a";
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const API_URL = "https://wmvyujfggczdyexrifkk.supabase.co/rest/v1";
+    const API_KEY = "sb_publishable_UR1kiYuEB-m2FeEFc-w5AQ_GU5rpo-a";
+
+    const headers = {
+        "apikey": API_KEY,
+        "Authorization": "Bearer " + API_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    };
 
     let currentUser = null;
     let decks = [];
@@ -221,51 +221,48 @@
     let currentCards = [];
     let currentCardIndex = -1;
 
-    // Login logic
-   async function login() {
-    const usernameInput = document.getElementById('login-username').value.trim();
-    const passwordInput = document.getElementById('login-password').value.trim();
+    async function login() {
+        const usernameInput = document.getElementById('login-username').value.trim();
+        const passwordInput = document.getElementById('login-password').value.trim();
+        const btn = document.getElementById('login-btn');
 
-    if (!usernameInput || !passwordInput) {
-        alert("Please enter both username and password.");
-        return;
+        if (!usernameInput || !passwordInput) return alert("Fill in username and password.");
+
+        btn.innerText = "Checking...";
+
+        try {
+            const res = await fetch(`${API_URL}/app_users?username=eq.${encodeURIComponent(usernameInput)}&password=eq.${encodeURIComponent(passwordInput)}`, {
+                headers: headers
+            });
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.message || "Database query failed");
+
+            if (data.length === 0) {
+                alert("Invalid username or password!");
+                btn.innerText = "Log In";
+                return;
+            }
+
+            currentUser = data[0];
+            document.getElementById('user-display').textContent = currentUser.username;
+            document.getElementById('view-login').classList.add('hidden');
+            document.getElementById('view-app').classList.remove('hidden');
+
+            await fetchDecks();
+        } catch (e) {
+            alert("Login Error: " + e.message);
+        } finally {
+            btn.innerText = "Log In";
+        }
     }
 
-    try {
-        const { data, error } = await supabase
-            .from('app_users')
-            .select('*')
-            .eq('username', usernameInput)
-            .eq('password', passwordInput)
-            .maybeSingle();
-
-        if (error) {
-            alert('Supabase Connection Error: ' + error.message);
-            return;
-        }
-
-        if (!data) {
-            alert('Invalid username or password. Check for uppercase letters!');
-            return;
-        }
-
-        currentUser = data;
-        document.getElementById('user-display').textContent = currentUser.username;
-        document.getElementById('view-login').classList.add('hidden');
-        document.getElementById('view-app').classList.remove('hidden');
-
-        await fetchDecks();
-    } catch (e) {
-        alert("Error logging in: " + e.message);
-    }
-}
     function logout() {
         currentUser = null;
         document.getElementById('view-app').classList.add('hidden');
         document.getElementById('view-login').classList.remove('hidden');
     }
 
-    // Tab Navigation
     function showTab(tabName) {
         document.querySelectorAll('.section').forEach(el => el.classList.add('hidden'));
         document.querySelectorAll('.nav-tabs button').forEach(el => el.classList.remove('active'));
@@ -277,20 +274,14 @@
         if (tabName === 'stats') updateStats();
     }
 
-    // Deck Management
     async function fetchDecks() {
-        const { data, error } = await supabase
-            .from('decks')
-            .select('*')
-            .eq('user_id', currentUser.id);
+        const res = await fetch(`${API_URL}/decks?user_id=eq.${currentUser.id}`, { headers });
+        decks = await res.json();
 
-        if (error) return alert(error.message);
-
-        decks = data;
         const selector = document.getElementById('deckSelector');
         selector.innerHTML = '';
 
-        if (decks.length === 0) {
+        if (!decks || decks.length === 0) {
             await createDeck("General Words");
             return;
         }
@@ -307,19 +298,16 @@
     }
 
     async function createDeck(deckName) {
-        const { data, error } = await supabase
-            .from('decks')
-            .insert([{ name: deckName, user_id: currentUser.id }])
-            .select()
-            .single();
-
-        if (error) return alert(error.message);
-
+        const res = await fetch(`${API_URL}/decks`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ name: deckName, user_id: currentUser.id })
+        });
         await fetchDecks();
     }
 
     async function createNewDeck() {
-        const name = prompt("Enter new deck name:");
+        const name = prompt("Enter deck name:");
         if (name) await createDeck(name);
     }
 
@@ -328,19 +316,10 @@
         await fetchCards();
     }
 
-    // Card CRUD
     async function fetchCards() {
         if (!activeDeckId) return;
-        
-        const { data, error } = await supabase
-            .from('cards')
-            .select('*')
-            .eq('deck_id', activeDeckId)
-            .eq('user_id', currentUser.id);
-
-        if (error) return alert(error.message);
-
-        currentCards = data;
+        const res = await fetch(`${API_URL}/cards?deck_id=eq.${activeDeckId}&user_id=eq.${currentUser.id}`, { headers });
+        currentCards = await res.json();
         loadNextCard();
         updateStats();
     }
@@ -351,17 +330,13 @@
         const ex_de = document.getElementById('input-ex-de').value;
         const ex_en = document.getElementById('input-ex-en').value;
 
-        if (!de || !en) return alert("German and English words are required.");
+        if (!de || !en) return alert("Words are required.");
 
-        const { error } = await supabase
-            .from('cards')
-            .insert([{
-                user_id: currentUser.id,
-                deck_id: activeDeckId,
-                de, en, ex_de, ex_en, stage: 0
-            }]);
-
-        if (error) return alert(error.message);
+        await fetch(`${API_URL}/cards`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ user_id: currentUser.id, deck_id: activeDeckId, de, en, ex_de, ex_en, stage: 0 })
+        });
 
         document.getElementById('input-de').value = '';
         document.getElementById('input-en').value = '';
@@ -372,28 +347,31 @@
         await fetchCards();
     }
 
-    // Auto-translation mock
-    function autoTranslate() {
-        const de = document.getElementById('input-de').value.trim();
-        const en = document.getElementById('input-en').value.trim();
+    async function autoTranslateAPI() {
+        const deInput = document.getElementById('input-de').value.trim();
+        const enInput = document.getElementById('input-en').value.trim();
 
-        if (de && !en) {
-            document.getElementById('input-en').value = `[Trans] ${de}`;
-            document.getElementById('input-ex-de').value = `Das ist ein Beispiel mit "${de}".`;
-            document.getElementById('input-ex-en').value = `This is an example with "${de}".`;
-        } else if (en && !de) {
-            document.getElementById('input-de').value = `[Trans] ${en}`;
-            document.getElementById('input-ex-de').value = `Das ist ein Beispiel mit "${en}".`;
-            document.getElementById('input-ex-en').value = `This is an example with "${en}".`;
+        if (!deInput && !enInput) return alert("Enter a German or English word first.");
+
+        if (deInput && !enInput) {
+            const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(deInput)}&langpair=de|en`);
+            const data = await res.json();
+            document.getElementById('input-en').value = data.responseData.translatedText;
+            document.getElementById('input-ex-de').value = `Das ist ein Beispiel mit "${deInput}".`;
+            document.getElementById('input-ex-en').value = `This is an example with "${data.responseData.translatedText}".`;
+        } else if (enInput && !deInput) {
+            const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(enInput)}&langpair=en|de`);
+            const data = await res.json();
+            document.getElementById('input-de').value = data.responseData.translatedText;
+            document.getElementById('input-ex-de').value = `Das ist ein Beispiel mit "${data.responseData.translatedText}".`;
+            document.getElementById('input-ex-en').value = `This is an example with "${enInput}".`;
         }
     }
 
-    // Learning Game Mechanics
     function loadNextCard() {
-        const cardEl = document.getElementById('card');
-        cardEl.classList.remove('flipped');
+        document.getElementById('card').classList.remove('flipped');
 
-        if (currentCards.length === 0) {
+        if (!currentCards || currentCards.length === 0) {
             document.getElementById('game-container').classList.add('hidden');
             document.getElementById('empty-state').classList.remove('hidden');
             return;
@@ -404,17 +382,16 @@
 
         currentCardIndex = Math.floor(Math.random() * currentCards.length);
         const card = currentCards[currentCardIndex];
+        const isGermanFront = Math.random() > 0.5;
 
-        const showGermanFront = Math.random() > 0.5;
-
-        if (showGermanFront) {
+        if (isGermanFront) {
             document.getElementById('front-text').textContent = card.de;
-            document.getElementById('front-subtext').textContent = "German (Click to flip)";
+            document.getElementById('front-subtext').textContent = "German (Tap to flip)";
             document.getElementById('back-text').textContent = card.en;
             document.getElementById('back-example').textContent = card.ex_de ? `"${card.ex_de}"` : '';
         } else {
             document.getElementById('front-text').textContent = card.en;
-            document.getElementById('front-subtext').textContent = "English (Click to flip)";
+            document.getElementById('front-subtext').textContent = "English (Tap to flip)";
             document.getElementById('back-text').textContent = card.de;
             document.getElementById('back-example').textContent = card.ex_en ? `"${card.ex_en}"` : '';
         }
@@ -431,10 +408,11 @@
 
         card.stage = newStage;
 
-        await supabase
-            .from('cards')
-            .update({ stage: newStage })
-            .eq('id', card.id);
+        await fetch(`${API_URL}/cards?id=eq.${card.id}`, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({ stage: newStage })
+        });
 
         loadNextCard();
         updateStats();
@@ -442,12 +420,13 @@
 
     function updateStats() {
         let toLearn = 0, practiced = 0, learned = 0;
-
-        currentCards.forEach(c => {
-            if (c.stage === 0) toLearn++;
-            else if (c.stage >= 1 && c.stage < 4) practiced++;
-            else if (c.stage >= 4) learned++;
-        });
+        if (currentCards) {
+            currentCards.forEach(c => {
+                if (c.stage === 0) toLearn++;
+                else if (c.stage >= 1 && c.stage < 4) practiced++;
+                else if (c.stage >= 4) learned++;
+            });
+        }
 
         document.getElementById('count-to-learn').textContent = toLearn;
         document.getElementById('count-practiced').textContent = practiced;
