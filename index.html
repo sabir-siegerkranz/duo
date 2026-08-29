@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Add Card - DuoCards Demo</title>
+  <title>DuoCards - Add Card</title>
   <style>
     * {
       box-sizing: border-box;
@@ -18,7 +18,7 @@
       margin: 0;
       padding: 20px;
     }
-    .card-container {
+    .view-container {
       background: #ffffff;
       border-radius: 16px;
       padding: 24px;
@@ -30,11 +30,15 @@
       background: #e5e9f0;
       border: none;
       color: #4c566a;
-      padding: 6px 14px;
+      padding: 8px 16px;
       border-radius: 8px;
       font-weight: 600;
       cursor: pointer;
       margin-bottom: 16px;
+      transition: background 0.2s;
+    }
+    .back-btn:hover {
+      background: #d8dee9;
     }
     h2 {
       margin: 0 0 20px 0;
@@ -99,12 +103,18 @@
     .btn-save:hover {
       background-color: #0090e0;
     }
+    /* Simple view toggle styling */
+    #deck-view {
+      display: none;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
 
-  <div class="card-container">
-    <button class="back-btn" onclick="history.back()">← Back</button>
+  <!-- Add Card View -->
+  <div id="add-card-view" class="view-container">
+    <button type="button" class="back-btn" onclick="navigateToDeck()">← Back</button>
     <h2>Add Card</h2>
 
     <form id="cardForm" onsubmit="handleSave(event)">
@@ -131,32 +141,50 @@
     </form>
   </div>
 
+  <!-- Deck / Main View (Mock target for Back button) -->
+  <div id="deck-view" class="view-container">
+    <h2>Deck View</h2>
+    <p>You are now back on the main deck screen.</p>
+    <button type="button" class="btn-translate" onclick="navigateToAddCard()">+ Add New Card</button>
+  </div>
+
   <script>
-    // Contextual German Example Generator
+    // Navigation Router
+    function navigateToDeck() {
+      document.getElementById('add-card-view').style.display = 'none';
+      document.getElementById('deck-view').style.display = 'block';
+    }
+
+    function navigateToAddCard() {
+      document.getElementById('deck-view').style.display = 'none';
+      document.getElementById('add-card-view').style.display = 'block';
+    }
+
+    // German-Only Example Sentence Logic
     function generateGermanExample(word, translation) {
       const clean = word.trim();
       const lower = clean.toLowerCase();
 
       if (!clean) return "";
 
-      // 1. Nouns (with articles: der, die, das)
+      // Nouns with articles (der, die, das)
       if (/^(der|die|das)\s+/i.test(clean)) {
         return `Ich benutze ${clean} jeden Tag.`;
       }
 
-      // 2. Verbs (ending in -en or -n)
+      // Verbs ending in -en / -n
       if (lower.endsWith('en') || lower.endsWith('n')) {
         return `Wir müssen heute ${lower}.`;
       }
 
-      // 3. Adjectives / Adverbs
+      // Adjectives / Adverbs
       const adjectives = ["gut", "schnell", "schön", "alt", "neu", "groß", "klein", "einfach", "schwer"];
       if (adjectives.includes(lower)) {
         return `Das ist wirklich sehr ${lower}.`;
       }
 
-      // 4. Prepositions / Connectors / General
-      return `Das Wort "${clean}" ist im Satz wichtig.`;
+      // Default German context
+      return `Das Wort "${clean}" ist sehr wichtig.`;
     }
 
     // Auto-Translate Action Handler
@@ -172,7 +200,6 @@
       }
 
       try {
-        // Free Client-Side Translation API (MyMemory API)
         const response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(germanText)}&langpair=de|en`);
         const data = await response.json();
 
@@ -180,12 +207,11 @@
           const translatedText = data.responseData.translatedText;
           enInput.value = translatedText;
 
-          // Generate relevant German-only example
+          // Populate German example only
           exDeInput.value = generateGermanExample(germanText, translatedText);
         }
       } catch (err) {
         console.error("Translation error:", err);
-        // Fallback sentence generator if API fails offline
         exDeInput.value = generateGermanExample(germanText, enInput.value);
       }
     }
@@ -200,6 +226,8 @@
       };
       console.log("Card Saved:", cardData);
       alert("Card saved successfully!");
+      document.getElementById('cardForm').reset();
+      navigateToDeck();
     }
   </script>
 </body>
