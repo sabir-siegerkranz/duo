@@ -800,11 +800,16 @@
         let newStage = success ? Math.min(card.stage + 1, 4) : 0;
         card.stage = newStage;
 
-        await fetch(`${API_URL}/cards?id=eq.${card.id}`, {
-            method: "PATCH",
-            headers,
-            body: JSON.stringify({ stage: newStage })
-        });
+        try {
+            await fetch(`${API_URL}/cards?id=eq.${card.id}`, {
+                method: "PATCH",
+                headers,
+                body: JSON.stringify({ stage: newStage })
+            });
+            await logActivity("card_rated", `Card ID: ${card.id}, Success: ${success}, New Stage: ${newStage}`);
+        } catch (e) {
+            console.error("Error updating card stage:", e);
+        }
 
         loadNextCard();
     }
