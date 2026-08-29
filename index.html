@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DuoCards - Fixed Edition</title>
+    <title>DuoCards - Enhanced Edition</title>
     <style>
         :root {
             --primary: #00a8ff;
@@ -115,11 +115,19 @@
         }
 
         .error-message { color: var(--danger); font-size: 12px; display: none; margin-top: 2px; }
+        .toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: #2f3542; color: white; padding: 10px 20px; border-radius: 20px;
+            font-size: 14px; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; z-index: 100;
+        }
+        .toast.show { opacity: 1; }
     </style>
 </head>
 <body>
 
 <div class="container">
+    <div id="toast" class="toast">Card Saved!</div>
+
     <!-- LOGIN VIEW -->
     <div id="view-login" class="card-box" style="text-align: center;">
         <h2 style="margin-top: 0;">Sign In</h2>
@@ -253,7 +261,15 @@
     let activeDeckId = null;
     let currentCards = [];
     let currentCardIndex = -1;
+    let lastCardId = null;
     let lastFocused = 'de';
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2000);
+    }
 
     async function login() {
         const usernameInput = document.getElementById('login-username').value.trim();
@@ -347,22 +363,40 @@
     }
 
     async function createDeck(deckName, deckType) {
-        await fetch(`${API_URL}/decks`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ name: deckName, type: deckType, user_id: currentUser.id })
-        });
-        await fetchDecks();
+        try {
+            const res = await fetch(`${API_URL}/decks`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ name: deckName, type: deckType, user_id: currentUser.id })
+            });
+
+            if (!res.ok) {
+                const errData = await res.json();
+                alert(`Database Error: ${errData.message || 'Ensure the "type" column exists in Supabase!'}`);
+                return null;
+            }
+
+            const createdDecks = await res.json();
+            return createdDecks[0];
+        } catch (e) {
+            alert("Network error creating deck: " + e.message);
+            return null;
+        }
     }
 
     async function createNewDeck() {
         const name = prompt("Enter new deck name:");
-        if (!name) return;
+        if (!name || !name.trim()) return;
 
         const isFree = confirm("Click OK for 'Free Deck' (2-sided, no auto-translate)\nClick Cancel for 'Standard Deck' (with translation & examples)");
         const type = isFree ? "free" : "normal";
 
-        await createDeck(name, type);
+        const newDeck = await createDeck(name.trim(), type);
+        if (newDeck) {
+            activeDeckId = newDeck.id;
+            await fetchDecks();
+            showToast("Deck created!");
+        }
     }
 
     async function fetchCardsAndRenderHomeStats() {
@@ -388,6 +422,7 @@
         document.getElementById('game-deck-title').textContent = selectedDeck ? selectedDeck.name : 'Practice';
         document.getElementById('view-home').classList.add('hidden');
         document.getElementById('view-game').classList.remove('hidden');
+        lastCardId = null;
         loadNextCard();
     }
 
@@ -431,12 +466,9 @@
         const deError = document.getElementById('de-error');
         const btnSave = document.getElementById('btn-save-card');
 
-        document.getElementById('input-ex-de').value = '';
-        document.getElementById('input-ex-en').value = '';
+        const isDuplicate = currentCards.some(c => c.de.toLowerCase() === deVal && deVal !== '');
 
-        const isDuplicate = currentCards.some(c => c.de.toLowerCase() === deVal);
-
-        if (isDuplicate && deVal !== '') {
+        if (isDuplicate) {
             deInput.classList.add('input-error');
             deError.style.display = 'block';
             btnSave.disabled = true;
@@ -447,41 +479,38 @@
         }
     }
 
-    // Auto-Adds German Definite Article (der/die/das) for Nouns
     async function autoAddArticle() {
         const selectedDeck = decks.find(d => d.id == activeDeckId);
-        if (selectedDeck && selectedDeck.type === 'free') return; // Skip for Free decks
+        if (selectedDeck && selectedDeck.type === 'free') return;
 
         const deInput = document.getElementById('input-de');
         let word = deInput.value.trim();
 
         if (!word) return;
 
-        // Skip if article is already provided
-        if (/^(der|die|das)\s+/i.test(word)) return;
+        word = word.replace(/^(der|die|das)\s+/i, '');
 
-        // Detect if word is capitalized (German Noun)
-        if (/^[A-ZÄÖÜ]/.test(word)) {
+        const firstLetter = word.charAt(0);
+        if (firstLetter && firstLetter === firstLetter.toUpperCase() && /[A-ZÄÖÜ]/.test(firstLetter)) {
             try {
-                const res = await fetch(`https://de.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&titles=${encodeURIComponent(word)}&format=json&origin=*`);
+                const res = await fetch(`https://de.wiktionary.org/w/api.php?action=query&prop=extracts&titles=${encodeURIComponent(word)}&format=json&origin=*`);
                 const data = await res.json();
                 const pages = data.query.pages;
                 const pageId = Object.keys(pages)[0];
 
                 if (pageId !== "-1") {
                     const extract = pages[pageId].extract || "";
-                    if (/\b(der|die|das)\s+/i.test(extract)) {
-                        const match = extract.match(/\b(der|die|das)\s+/i);
+                    if (/\b(der|die|das)\b/i.test(extract)) {
+                        const match = extract.match(/\b(der|die|das)\b/i);
                         if (match) {
-                            const article = match[1].toLowerCase();
-                            deInput.value = `${article} ${word}`;
+                            deInput.value = `${match[1].toLowerCase()} ${word}`;
+                            return;
                         }
                     }
                 }
-            } catch (e) {
-                // Ignore API failures quietly
-            }
+            } catch (e) {}
         }
+        deInput.value = word;
     }
 
     async function autoTranslateAPI() {
@@ -492,39 +521,67 @@
         btn.innerText = "Translating...";
 
         try {
-            if (lastFocused === 'de' && deInput.value.trim() !== '') {
-                const query = deInput.value.trim();
-                const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(query)}&langpair=de|en`);
-                const data = await res.json();
+            let query = (lastFocused === 'de' ? deInput.value : enInput.value).trim();
+            if (!query) return;
 
-                let translated = data.responseData.translatedText;
-                translated = translated.replace(/^Acc\. to/i, "after").replace(/^the /i, "");
+            const cleanQuery = query.replace(/^(der|die|das)\s+/i, '');
+            const pair = lastFocused === 'de' ? 'de|en' : 'en|de';
+            
+            const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanQuery)}&langpair=${pair}`);
+            const data = await res.json();
 
+            let translated = data.responseData.translatedText || "";
+            translated = translated.replace(/^holiday entitlement$/i, "holiday")
+                                   .replace(/^Acc\. to/i, "after")
+                                   .replace(/^the /i, "");
+
+            if (lastFocused === 'de') {
                 enInput.value = translated;
-                generateSentences(query, translated);
-            } else if (lastFocused === 'en' && enInput.value.trim() !== '') {
-                const query = enInput.value.trim();
-                const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(query)}&langpair=en|de`);
-                const data = await res.json();
-
-                let translated = data.responseData.translatedText;
+                await fetchRealExamples(cleanQuery, translated);
+            } else {
                 deInput.value = translated;
-                generateSentences(translated, query);
+                await autoAddArticle();
+                await fetchRealExamples(deInput.value.replace(/^(der|die|das)\s+/i, ''), query);
                 handleInputChange('de');
             }
         } catch (e) {
-            alert("Translation failed. Check connection.");
+            alert("Translation failed. Check network connection.");
         } finally {
             btn.innerText = "⚡ Auto-Translate";
         }
     }
 
-    function generateSentences(deWord, enWord) {
-        document.getElementById('input-ex-de').value = `Das Wort "${deWord}" ist wichtig.`;
-        document.getElementById('input-ex-en').value = `The word "${enWord}" is important.`;
+    async function fetchRealExamples(deWord, enWord) {
+        const exDeInput = document.getElementById('input-ex-de');
+        const exEnInput = document.getElementById('input-ex-en');
+
+        try {
+            const res = await fetch(`https://de.wiktionary.org/w/api.php?action=query&prop=extracts&titles=${encodeURIComponent(deWord)}&format=json&origin=*`);
+            const data = await res.json();
+            const pages = data.query.pages;
+            const pageId = Object.keys(pages)[0];
+
+            if (pageId !== "-1") {
+                const extract = pages[pageId].extract || "";
+                const sentenceMatch = extract.match(new RegExp(`([^.!?]*\\b${deWord}\\b[^.!?]*[.!?])`, 'i'));
+                if (sentenceMatch) {
+                    const cleanSentence = sentenceMatch[1].replace(/<[^>]*>/g, '').trim();
+                    exDeInput.value = cleanSentence;
+
+                    const transRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanSentence)}&langpair=de|en`);
+                    const transData = await transRes.json();
+                    exEnInput.value = transData.responseData.translatedText;
+                    return;
+                }
+            }
+        } catch (e) {}
+
+        exDeInput.value = `Ich kenne das Wort "${deWord}".`;
+        exEnInput.value = `I know the word "${enWord}".`;
     }
 
     async function addCard() {
+        await autoAddArticle();
         const de = document.getElementById('input-de').value.trim();
         const en = document.getElementById('input-en').value.trim();
         const ex_de = document.getElementById('input-ex-de').value.trim();
@@ -547,15 +604,18 @@
         document.getElementById('input-ex-de').value = '';
         document.getElementById('input-ex-en').value = '';
 
-        alert("Card saved!");
+        showToast("Card Saved!");
         await fetchCardsAndRenderHomeStats();
-        exitAddToHome();
     }
 
     function getWeightedRandomCard() {
         let pool = currentCards.filter(c => c.stage < 4);
         if (pool.length === 0) pool = currentCards;
         if (pool.length === 0) return null;
+
+        if (pool.length > 1 && lastCardId !== null) {
+            pool = pool.filter(c => c.id !== lastCardId);
+        }
 
         let weightedArray = [];
         pool.forEach(card => {
@@ -565,7 +625,9 @@
             }
         });
 
-        return weightedArray[Math.floor(Math.random() * weightedArray.length)];
+        const selected = weightedArray[Math.floor(Math.random() * weightedArray.length)];
+        if (selected) lastCardId = selected.id;
+        return selected;
     }
 
     function loadNextCard() {
