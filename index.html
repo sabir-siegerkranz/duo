@@ -1,250 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DuoCards - Enhanced Edition</title>
-    <style>
-        :root {
-            --primary: #00a8ff;
-            --success: #2ed573;
-            --warning: #ffa502;
-            --danger: #ff4757;
-            --bg: #f4f6f9;
-            --card-bg: #ffffff;
-            --text: #2f3542;
-        }
-
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 12px;
-            display: flex;
-            justify-content: center;
-            min-height: 100vh;
-        }
-
-        .container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 12px; }
-        .hidden { display: none !important; }
-
-        .card-box {
-            background: var(--card-bg);
-            padding: 16px;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        }
-
-        .header { display: flex; justify-content: space-between; align-items: center; }
-
-        select, button, input {
-            font-size: 15px;
-            padding: 12px;
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
-            outline: none;
-            width: 100%;
-        }
-
-        input.input-error {
-            border: 2px solid var(--danger) !important;
-            background-color: #fff0f1;
-        }
-
-        button {
-            background-color: var(--primary);
-            color: white;
-            border: none;
-            font-weight: bold;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        button:active { transform: scale(0.98); opacity: 0.9; }
-
-        .flashcard-container { perspective: 1000px; height: 250px; margin: 10px 0; }
-        .flashcard {
-            width: 100%; height: 100%; position: relative;
-            transform-style: preserve-3d;
-            transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
-            cursor: pointer;
-        }
-        .flashcard.no-anim { transition: none !important; }
-        .flashcard.flipped { transform: rotateY(180deg); }
-        .card-face {
-            position: absolute; width: 100%; height: 100%;
-            backface-visibility: hidden; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; border-radius: 16px;
-            border: 1px solid #e1e8ed; background: white; padding: 20px; box-sizing: border-box; text-align: center;
-        }
-        .card-back { transform: rotateY(180deg); background-color: #f8fafc; }
-        .card-word { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
-        .card-example { font-size: 14px; color: #64748b; font-style: italic; }
-
-        .controls { display: flex; gap: 10px; }
-        .controls button { flex: 1; padding: 14px; font-size: 16px; border-radius: 12px; }
-        .btn-again { background-color: var(--danger); }
-        .btn-good { background-color: var(--success); }
-
-        .form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
-        .form-group label { font-size: 13px; font-weight: 600; color: #64748b; }
-
-        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; text-align: center; }
-        .stat-box { padding: 10px 6px; border-radius: 10px; background: #f8fafc; }
-        .stat-box.to-learn { border-top: 4px solid var(--primary); }
-        .stat-box.practiced { border-top: 4px solid var(--warning); }
-        .stat-box.learned { border-top: 4px solid var(--success); }
-        .stat-number { font-size: 18px; font-weight: bold; margin-top: 4px; }
-
-        .deck-item {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 14px; border: 2px solid #e0e0e0; border-radius: 12px; margin-bottom: 8px;
-            cursor: pointer; transition: all 0.2s ease;
-        }
-        .deck-item:active { transform: scale(0.98); }
-        .deck-item.selected { border-color: var(--primary); background-color: #e6f7ff; }
-
-        .deck-badge {
-            font-size: 11px; padding: 2px 8px; border-radius: 10px;
-            background-color: #e2e8f0; color: #475569; font-weight: 600;
-        }
-
-        .error-message { color: var(--danger); font-size: 12px; display: none; margin-top: 2px; }
-        .toast {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            background: #2f3542; color: white; padding: 10px 20px; border-radius: 20px;
-            font-size: 14px; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; z-index: 100;
-        }
-        .toast.show { opacity: 1; }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <div id="toast" class="toast">Card Saved!</div>
-
-    <!-- LOGIN VIEW -->
-    <div id="view-login" class="card-box" style="text-align: center;">
-        <h2 style="margin-top: 0;">Sign In</h2>
-        <div class="form-group">
-            <label>Username</label>
-            <input type="text" id="login-username" placeholder="Orkhan or Aziz">
-        </div>
-        <div class="form-group">
-            <label>Password</label>
-            <input type="password" id="login-password">
-        </div>
-        <button id="login-btn" style="margin-top: 10px; padding: 14px;" onclick="login()">Log In</button>
-    </div>
-
-    <!-- HOME VIEW -->
-    <div id="view-home" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
-        <div class="card-box header">
-            <div><strong>User: </strong><span id="user-display"></span></div>
-            <button style="background: none; color: #94a3b8; border: none; padding: 0; font-size: 12px; width: auto;" onclick="logout()">Logout</button>
-        </div>
-
-        <div class="card-box">
-            <h3 style="margin-top:0;">Your Decks</h3>
-            <div id="deck-list-container"></div>
-            <button style="margin-top: 10px; background-color: #3b82f6;" onclick="createNewDeck()">+ Create New Deck</button>
-        </div>
-
-        <div class="card-box">
-            <h3 style="margin-top:0;">Deck Overview</h3>
-            <div class="form-group">
-                <label>Select Deck:</label>
-                <select id="homeDeckSelector" onchange="selectDeckFromDropdown()"></select>
-            </div>
-            <div class="stats-grid">
-                <div class="stat-box to-learn">
-                    <div style="font-size:11px;">📚 To Learn</div>
-                    <div class="stat-number" id="home-count-to-learn">0</div>
-                </div>
-                <div class="stat-box practiced">
-                    <div style="font-size:11px;">⏱️ Practiced</div>
-                    <div class="stat-number" id="home-count-practiced">0</div>
-                </div>
-                <div class="stat-box learned">
-                    <div style="font-size:11px;">🎉 Learned</div>
-                    <div class="stat-number" id="home-count-learned">0</div>
-                </div>
-            </div>
-            <button style="background-color: var(--success); padding: 14px; font-size: 16px;" onclick="startPracticeFromHome()">▶ Play Deck</button>
-            <button style="margin-top: 8px; background-color: #718096;" onclick="openAddCardModal()">+ Add Cards</button>
-        </div>
-    </div>
-
-    <!-- GAME VIEW -->
-    <div id="view-game" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
-        <div class="card-box header">
-            <button style="width: auto; padding: 6px 12px; background-color: #a0aec0;" onclick="exitGameToHome()">← Exit</button>
-            <div style="font-weight: bold;" id="game-deck-title">Deck</div>
-        </div>
-
-        <div class="card-box">
-            <div id="game-container">
-                <div class="flashcard-container">
-                    <div class="flashcard" id="card" onclick="flipCard()">
-                        <div class="card-face card-front">
-                            <div class="card-word" id="front-text">Loading...</div>
-                            <div class="card-example" id="front-subtext">Tap to flip</div>
-                        </div>
-                        <div class="card-face card-back">
-                            <div class="card-word" id="back-text">...</div>
-                            <div class="card-example" id="back-example">...</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="controls">
-                    <button class="btn-again" onclick="rateCard(false)">Again</button>
-                    <button class="btn-good" onclick="rateCard(true)">Got it!</button>
-                </div>
-            </div>
-            <div id="empty-state" class="hidden" style="text-align: center; padding: 40px 0;">
-                🎉 All cards in this deck completed!
-            </div>
-        </div>
-    </div>
-
-    <!-- ADD CARD VIEW -->
-    <div id="view-add" class="card-box hidden">
-        <button style="width: auto; padding: 6px 12px; background-color: #a0aec0; margin-bottom: 12px;" onclick="exitAddToHome()">← Back</button>
-        <h3 style="margin-top:0;" id="add-card-title">Add Card</h3>
-        
-        <div class="form-group">
-            <label id="label-side-a">German Word/Phrase:</label>
-            <input type="text" id="input-de" onfocus="lastFocused = 'de'" oninput="handleInputChange('de')" onblur="autoAddArticle()">
-            <div id="de-error" class="error-message">Word already exists in deck!</div>
-        </div>
-        
-        <div class="form-group">
-            <label id="label-side-b">English Translation:</label>
-            <input type="text" id="input-en" onfocus="lastFocused = 'en'" oninput="handleInputChange('en')">
-        </div>
-        
-        <div id="standard-deck-fields">
-            <button id="btn-translate" style="margin-bottom: 12px; background-color: #3b82f6;" onclick="autoTranslateAPI()">⚡ Auto-Translate</button>
-            <div class="form-group">
-                <label>Example Sentence (German):</label>
-                <input type="text" id="input-ex-de">
-            </div>
-            <div class="form-group">
-                <label>Example Sentence (English):</label>
-                <input type="text" id="input-ex-en">
-            </div>
-        </div>
-
-        <button id="btn-save-card" onclick="addCard()">Save Card</button>
-    </div>
-</div>
-
 <script>
     const API_URL = "https://wmvyujfggczdyexrifkk.supabase.co/rest/v1";
     const API_KEY = "sb_publishable_UR1kiYuEB-m2FeEFc-w5AQ_GU5rpo-a";
@@ -264,11 +17,33 @@
     let lastCardId = null;
     let lastFocused = 'de';
 
+    const ABBREVIATIONS = {
+        "vorh.": "vorhanden",
+        "bzw.": "beziehungsweise",
+        "ca.": "circa",
+        "z.b.": "zum beispiel"
+    };
+
     function showToast(msg) {
         const toast = document.getElementById('toast');
         toast.textContent = msg;
         toast.classList.add('show');
         setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    // Helper: Completely strip HTML tags, wikitext artifacts, and metadata
+    function cleanHTML(raw) {
+        if (!raw) return "";
+        let tmp = document.createElement("DIV");
+        tmp.innerHTML = raw;
+        let text = tmp.textContent || tmp.innerText || "";
+        
+        return text.replace(/[\d]*"?\s*data-mw-wikitext="[^"]*"/gi, "")
+                   .replace(/<[^>]*>/g, "")
+                   .replace(/\[\d+\]/g, "")
+                   .replace(/[{}]/g, "")
+                   .replace(/\s+/g, " ")
+                   .trim();
     }
 
     async function login() {
@@ -372,7 +147,7 @@
 
             if (!res.ok) {
                 const errData = await res.json();
-                alert(`Database Error: ${errData.message || 'Ensure the "type" column exists in Supabase!'}`);
+                alert(`Database Error: ${errData.message || 'Make sure the "type" column exists in Supabase!'}`);
                 return null;
             }
 
@@ -499,7 +274,7 @@
                 const pageId = Object.keys(pages)[0];
 
                 if (pageId !== "-1") {
-                    const extract = pages[pageId].extract || "";
+                    const extract = cleanHTML(pages[pageId].extract || "");
                     if (/\b(der|die|das)\b/i.test(extract)) {
                         const match = extract.match(/\b(der|die|das)\b/i);
                         if (match) {
@@ -521,19 +296,24 @@
         btn.innerText = "Translating...";
 
         try {
-            let query = (lastFocused === 'de' ? deInput.value : enInput.value).trim();
-            if (!query) return;
+            let rawInput = (lastFocused === 'de' ? deInput.value : enInput.value).trim();
+            if (!rawInput) return;
 
-            const cleanQuery = query.replace(/^(der|die|das)\s+/i, '');
+            // Expand known abbreviations
+            let expandedInput = ABBREVIATIONS[rawInput.toLowerCase()] || rawInput;
+
+            // Handle multi-word lists like "geben, gib, gebt" -> take base word "geben"
+            let primaryWord = expandedInput.split(/[,/;]/)[0].trim();
+            
+            // Strip articles
+            let cleanQuery = primaryWord.replace(/^(der|die|das|ein|eine)\s+/i, '');
+
             const pair = lastFocused === 'de' ? 'de|en' : 'en|de';
             
             const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanQuery)}&langpair=${pair}`);
             const data = await res.json();
 
-            let translated = data.responseData.translatedText || "";
-            translated = translated.replace(/^holiday entitlement$/i, "holiday")
-                                   .replace(/^Acc\. to/i, "after")
-                                   .replace(/^the /i, "");
+            let translated = cleanHTML(data.responseData.translatedText || "");
 
             if (lastFocused === 'de') {
                 enInput.value = translated;
@@ -541,7 +321,7 @@
             } else {
                 deInput.value = translated;
                 await autoAddArticle();
-                await fetchRealExamples(deInput.value.replace(/^(der|die|das)\s+/i, ''), query);
+                await fetchRealExamples(deInput.value.replace(/^(der|die|das)\s+/i, ''), rawInput);
                 handleInputChange('de');
             }
         } catch (e) {
@@ -555,29 +335,55 @@
         const exDeInput = document.getElementById('input-ex-de');
         const exEnInput = document.getElementById('input-ex-en');
 
+        // Multi-tier sentence lookup pipeline
         try {
+            // Priority 1: German Dict API search
+            const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/de/${encodeURIComponent(deWord)}`);
+            if (dictRes.ok) {
+                const dictData = await dictRes.json();
+                for (const entry of dictData) {
+                    for (const meaning of (entry.meanings || [])) {
+                        for (const def of (meaning.definitions || [])) {
+                            if (def.example && def.example.length > 8 && def.example.length < 120) {
+                                let cleanEx = cleanHTML(def.example);
+                                exDeInput.value = cleanEx;
+
+                                const transRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanEx)}&langpair=de|en`);
+                                const transData = await transRes.json();
+                                exEnInput.value = cleanHTML(transData.responseData.translatedText);
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Priority 2: Sanitized Wiktionary parsing
             const res = await fetch(`https://de.wiktionary.org/w/api.php?action=query&prop=extracts&titles=${encodeURIComponent(deWord)}&format=json&origin=*`);
             const data = await res.json();
             const pages = data.query.pages;
             const pageId = Object.keys(pages)[0];
 
             if (pageId !== "-1") {
-                const extract = pages[pageId].extract || "";
-                const sentenceMatch = extract.match(new RegExp(`([^.!?]*\\b${deWord}\\b[^.!?]*[.!?])`, 'i'));
-                if (sentenceMatch) {
-                    const cleanSentence = sentenceMatch[1].replace(/<[^>]*>/g, '').trim();
+                const cleanExtract = cleanHTML(pages[pageId].extract || "");
+                const sentenceMatch = cleanExtract.match(new RegExp(`([^.!?]*\\b${deWord}\\b[^.!?]*[.!?])`, 'i'));
+                
+                if (sentenceMatch && sentenceMatch[1].length > 10 && sentenceMatch[1].length < 120) {
+                    let cleanSentence = sentenceMatch[1].trim();
                     exDeInput.value = cleanSentence;
 
                     const transRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanSentence)}&langpair=de|en`);
                     const transData = await transRes.json();
-                    exEnInput.value = transData.responseData.translatedText;
+                    exEnInput.value = cleanHTML(transData.responseData.translatedText);
                     return;
                 }
             }
         } catch (e) {}
 
-        exDeInput.value = `Ich kenne das Wort "${deWord}".`;
-        exEnInput.value = `I know the word "${enWord}".`;
+        // Safe clean fallback (No raw HTML or JSON residual errors)
+        const capWord = deWord.charAt(0).toUpperCase() + deWord.slice(1);
+        exDeInput.value = `${capWord} ist ein nützliches Wort.`;
+        exEnInput.value = `${enWord} is a useful word.`;
     }
 
     async function addCard() {
@@ -686,5 +492,3 @@
         loadNextCard();
     }
 </script>
-</body>
-</html>
