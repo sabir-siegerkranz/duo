@@ -1,494 +1,134 @@
-<script>
-    const API_URL = "https://wmvyujfggczdyexrifkk.supabase.co/rest/v1";
-    const API_KEY = "sb_publishable_UR1kiYuEB-m2FeEFc-w5AQ_GU5rpo-a";
-
-    const headers = {
-        "apikey": API_KEY,
-        "Authorization": "Bearer " + API_KEY,
-        "Content-Type": "application/json",
-        "Prefer": "return=representation"
-    };
-
-    let currentUser = null;
-    let decks = [];
-    let activeDeckId = null;
-    let currentCards = [];
-    let currentCardIndex = -1;
-    let lastCardId = null;
-    let lastFocused = 'de';
-
-    const ABBREVIATIONS = {
-        "vorh.": "vorhanden",
-        "bzw.": "beziehungsweise",
-        "ca.": "circa",
-        "z.b.": "zum beispiel"
-    };
-
-    function showToast(msg) {
-        const toast = document.getElementById('toast');
-        toast.textContent = msg;
-        toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 2000);
-    }
-
-    // Helper: Completely strip HTML tags, wikitext artifacts, and metadata
-    function cleanHTML(raw) {
-        if (!raw) return "";
-        let tmp = document.createElement("DIV");
-        tmp.innerHTML = raw;
-        let text = tmp.textContent || tmp.innerText || "";
-        
-        return text.replace(/[\d]*"?\s*data-mw-wikitext="[^"]*"/gi, "")
-                   .replace(/<[^>]*>/g, "")
-                   .replace(/\[\d+\]/g, "")
-                   .replace(/[{}]/g, "")
-                   .replace(/\s+/g, " ")
-                   .trim();
-    }
-
-    async function login() {
-        const usernameInput = document.getElementById('login-username').value.trim();
-        const passwordInput = document.getElementById('login-password').value.trim();
-        const btn = document.getElementById('login-btn');
-
-        if (!usernameInput || !passwordInput) return alert("Enter credentials.");
-        btn.innerText = "Signing in...";
-
-        try {
-            const res = await fetch(`${API_URL}/app_users?username=eq.${encodeURIComponent(usernameInput)}&password=eq.${encodeURIComponent(passwordInput)}`, { headers });
-            const data = await res.json();
-
-            if (data.length === 0) {
-                alert("Invalid username or password!");
-                return;
-            }
-
-            currentUser = data[0];
-            document.getElementById('user-display').textContent = currentUser.username;
-            document.getElementById('view-login').classList.add('hidden');
-            document.getElementById('view-home').classList.remove('hidden');
-
-            await fetchDecks();
-        } catch (e) {
-            alert("Connection error: " + e.message);
-        } finally {
-            btn.innerText = "Log In";
-        }
-    }
-
-    function logout() {
-        currentUser = null;
-        document.getElementById('view-home').classList.add('hidden');
-        document.getElementById('view-game').classList.add('hidden');
-        document.getElementById('view-add').classList.add('hidden');
-        document.getElementById('view-login').classList.remove('hidden');
-    }
-
-    async function fetchDecks() {
-        const res = await fetch(`${API_URL}/decks?user_id=eq.${currentUser.id}`, { headers });
-        decks = await res.json();
-
-        if (!decks || decks.length === 0) {
-            await createDeck("General Words", "normal");
-            return;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DuoCards - Enhanced Edition</title>
+    <style>
+        :root {
+            --primary: #00a8ff;
+            --success: #2ed573;
+            --warning: #ffa502;
+            --danger: #ff4757;
+            --bg: #f4f6f9;
+            --card-bg: #ffffff;
+            --text: #2f3542;
         }
 
-        if (!activeDeckId && decks.length > 0) activeDeckId = decks[0].id;
-        renderHomeDecks();
-    }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-    function renderHomeDecks() {
-        const listEl = document.getElementById('deck-list-container');
-        const selectorEl = document.getElementById('homeDeckSelector');
-        listEl.innerHTML = '';
-        selectorEl.innerHTML = '';
-
-        decks.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = d.id;
-            opt.textContent = `${d.name} ${d.type === 'free' ? '(Free)' : ''}`;
-            selectorEl.appendChild(opt);
-
-            const item = document.createElement('div');
-            item.className = 'deck-item';
-            if (d.id == activeDeckId) item.classList.add('selected');
-
-            const isFree = d.type === 'free';
-            item.innerHTML = `
-                <strong>${d.name}</strong>
-                <span class="deck-badge">${isFree ? 'Free Deck' : 'Standard'}</span>
-            `;
-            item.onclick = () => selectDeck(d.id);
-
-            listEl.appendChild(item);
-        });
-
-        selectorEl.value = activeDeckId;
-        fetchCardsAndRenderHomeStats();
-    }
-
-    function selectDeck(deckId) {
-        activeDeckId = deckId;
-        renderHomeDecks();
-    }
-
-    function selectDeckFromDropdown() {
-        activeDeckId = document.getElementById('homeDeckSelector').value;
-        renderHomeDecks();
-    }
-
-    async function createDeck(deckName, deckType) {
-        try {
-            const res = await fetch(`${API_URL}/decks`, {
-                method: "POST",
-                headers,
-                body: JSON.stringify({ name: deckName, type: deckType, user_id: currentUser.id })
-            });
-
-            if (!res.ok) {
-                const errData = await res.json();
-                alert(`Database Error: ${errData.message || 'Make sure the "type" column exists in Supabase!'}`);
-                return null;
-            }
-
-            const createdDecks = await res.json();
-            return createdDecks[0];
-        } catch (e) {
-            alert("Network error creating deck: " + e.message);
-            return null;
-        }
-    }
-
-    async function createNewDeck() {
-        const name = prompt("Enter new deck name:");
-        if (!name || !name.trim()) return;
-
-        const isFree = confirm("Click OK for 'Free Deck' (2-sided, no auto-translate)\nClick Cancel for 'Standard Deck' (with translation & examples)");
-        const type = isFree ? "free" : "normal";
-
-        const newDeck = await createDeck(name.trim(), type);
-        if (newDeck) {
-            activeDeckId = newDeck.id;
-            await fetchDecks();
-            showToast("Deck created!");
-        }
-    }
-
-    async function fetchCardsAndRenderHomeStats() {
-        if (!activeDeckId) return;
-
-        const res = await fetch(`${API_URL}/cards?deck_id=eq.${activeDeckId}&user_id=eq.${currentUser.id}`, { headers });
-        currentCards = await res.json();
-
-        let toLearn = 0, practiced = 0, learned = 0;
-        currentCards.forEach(c => {
-            if (c.stage === 0) toLearn++;
-            else if (c.stage >= 1 && c.stage < 4) practiced++;
-            else if (c.stage >= 4) learned++;
-        });
-
-        document.getElementById('home-count-to-learn').textContent = toLearn;
-        document.getElementById('home-count-practiced').textContent = practiced;
-        document.getElementById('home-count-learned').textContent = learned;
-    }
-
-    function startPracticeFromHome() {
-        const selectedDeck = decks.find(d => d.id == activeDeckId);
-        document.getElementById('game-deck-title').textContent = selectedDeck ? selectedDeck.name : 'Practice';
-        document.getElementById('view-home').classList.add('hidden');
-        document.getElementById('view-game').classList.remove('hidden');
-        lastCardId = null;
-        loadNextCard();
-    }
-
-    function exitGameToHome() {
-        document.getElementById('view-game').classList.add('hidden');
-        document.getElementById('view-home').classList.remove('hidden');
-        fetchCardsAndRenderHomeStats();
-    }
-
-    function openAddCardModal() {
-        const selectedDeck = decks.find(d => d.id == activeDeckId);
-        const isFree = selectedDeck && selectedDeck.type === 'free';
-
-        const extraFields = document.getElementById('standard-deck-fields');
-        const labelA = document.getElementById('label-side-a');
-        const labelB = document.getElementById('label-side-b');
-
-        if (isFree) {
-            extraFields.classList.add('hidden');
-            labelA.textContent = "Front Side:";
-            labelB.textContent = "Back Side:";
-        } else {
-            extraFields.classList.remove('hidden');
-            labelA.textContent = "German Word/Phrase:";
-            labelB.textContent = "English Translation:";
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 12px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
         }
 
-        document.getElementById('view-home').classList.add('hidden');
-        document.getElementById('view-add').classList.remove('hidden');
-    }
+        .container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 12px; }
+        .hidden { display: none !important; }
 
-    function exitAddToHome() {
-        document.getElementById('view-add').classList.add('hidden');
-        document.getElementById('view-home').classList.remove('hidden');
-        fetchCardsAndRenderHomeStats();
-    }
-
-    function handleInputChange(field) {
-        const deInput = document.getElementById('input-de');
-        const deVal = deInput.value.trim().toLowerCase();
-        const deError = document.getElementById('de-error');
-        const btnSave = document.getElementById('btn-save-card');
-
-        const isDuplicate = currentCards.some(c => c.de.toLowerCase() === deVal && deVal !== '');
-
-        if (isDuplicate) {
-            deInput.classList.add('input-error');
-            deError.style.display = 'block';
-            btnSave.disabled = true;
-        } else {
-            deInput.classList.remove('input-error');
-            deError.style.display = 'none';
-            btnSave.disabled = false;
-        }
-    }
-
-    async function autoAddArticle() {
-        const selectedDeck = decks.find(d => d.id == activeDeckId);
-        if (selectedDeck && selectedDeck.type === 'free') return;
-
-        const deInput = document.getElementById('input-de');
-        let word = deInput.value.trim();
-
-        if (!word) return;
-
-        word = word.replace(/^(der|die|das)\s+/i, '');
-
-        const firstLetter = word.charAt(0);
-        if (firstLetter && firstLetter === firstLetter.toUpperCase() && /[A-ZÄÖÜ]/.test(firstLetter)) {
-            try {
-                const res = await fetch(`https://de.wiktionary.org/w/api.php?action=query&prop=extracts&titles=${encodeURIComponent(word)}&format=json&origin=*`);
-                const data = await res.json();
-                const pages = data.query.pages;
-                const pageId = Object.keys(pages)[0];
-
-                if (pageId !== "-1") {
-                    const extract = cleanHTML(pages[pageId].extract || "");
-                    if (/\b(der|die|das)\b/i.test(extract)) {
-                        const match = extract.match(/\b(der|die|das)\b/i);
-                        if (match) {
-                            deInput.value = `${match[1].toLowerCase()} ${word}`;
-                            return;
-                        }
-                    }
-                }
-            } catch (e) {}
-        }
-        deInput.value = word;
-    }
-
-    async function autoTranslateAPI() {
-        const deInput = document.getElementById('input-de');
-        const enInput = document.getElementById('input-en');
-        const btn = document.getElementById('btn-translate');
-
-        btn.innerText = "Translating...";
-
-        try {
-            let rawInput = (lastFocused === 'de' ? deInput.value : enInput.value).trim();
-            if (!rawInput) return;
-
-            // Expand known abbreviations
-            let expandedInput = ABBREVIATIONS[rawInput.toLowerCase()] || rawInput;
-
-            // Handle multi-word lists like "geben, gib, gebt" -> take base word "geben"
-            let primaryWord = expandedInput.split(/[,/;]/)[0].trim();
-            
-            // Strip articles
-            let cleanQuery = primaryWord.replace(/^(der|die|das|ein|eine)\s+/i, '');
-
-            const pair = lastFocused === 'de' ? 'de|en' : 'en|de';
-            
-            const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanQuery)}&langpair=${pair}`);
-            const data = await res.json();
-
-            let translated = cleanHTML(data.responseData.translatedText || "");
-
-            if (lastFocused === 'de') {
-                enInput.value = translated;
-                await fetchRealExamples(cleanQuery, translated);
-            } else {
-                deInput.value = translated;
-                await autoAddArticle();
-                await fetchRealExamples(deInput.value.replace(/^(der|die|das)\s+/i, ''), rawInput);
-                handleInputChange('de');
-            }
-        } catch (e) {
-            alert("Translation failed. Check network connection.");
-        } finally {
-            btn.innerText = "⚡ Auto-Translate";
-        }
-    }
-
-    async function fetchRealExamples(deWord, enWord) {
-        const exDeInput = document.getElementById('input-ex-de');
-        const exEnInput = document.getElementById('input-ex-en');
-
-        // Multi-tier sentence lookup pipeline
-        try {
-            // Priority 1: German Dict API search
-            const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/de/${encodeURIComponent(deWord)}`);
-            if (dictRes.ok) {
-                const dictData = await dictRes.json();
-                for (const entry of dictData) {
-                    for (const meaning of (entry.meanings || [])) {
-                        for (const def of (meaning.definitions || [])) {
-                            if (def.example && def.example.length > 8 && def.example.length < 120) {
-                                let cleanEx = cleanHTML(def.example);
-                                exDeInput.value = cleanEx;
-
-                                const transRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanEx)}&langpair=de|en`);
-                                const transData = await transRes.json();
-                                exEnInput.value = cleanHTML(transData.responseData.translatedText);
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Priority 2: Sanitized Wiktionary parsing
-            const res = await fetch(`https://de.wiktionary.org/w/api.php?action=query&prop=extracts&titles=${encodeURIComponent(deWord)}&format=json&origin=*`);
-            const data = await res.json();
-            const pages = data.query.pages;
-            const pageId = Object.keys(pages)[0];
-
-            if (pageId !== "-1") {
-                const cleanExtract = cleanHTML(pages[pageId].extract || "");
-                const sentenceMatch = cleanExtract.match(new RegExp(`([^.!?]*\\b${deWord}\\b[^.!?]*[.!?])`, 'i'));
-                
-                if (sentenceMatch && sentenceMatch[1].length > 10 && sentenceMatch[1].length < 120) {
-                    let cleanSentence = sentenceMatch[1].trim();
-                    exDeInput.value = cleanSentence;
-
-                    const transRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanSentence)}&langpair=de|en`);
-                    const transData = await transRes.json();
-                    exEnInput.value = cleanHTML(transData.responseData.translatedText);
-                    return;
-                }
-            }
-        } catch (e) {}
-
-        // Safe clean fallback (No raw HTML or JSON residual errors)
-        const capWord = deWord.charAt(0).toUpperCase() + deWord.slice(1);
-        exDeInput.value = `${capWord} ist ein nützliches Wort.`;
-        exEnInput.value = `${enWord} is a useful word.`;
-    }
-
-    async function addCard() {
-        await autoAddArticle();
-        const de = document.getElementById('input-de').value.trim();
-        const en = document.getElementById('input-en').value.trim();
-        const ex_de = document.getElementById('input-ex-de').value.trim();
-        const ex_en = document.getElementById('input-ex-en').value.trim();
-
-        if (!de || !en) return alert("Both sides are required.");
-
-        if (currentCards.some(c => c.de.toLowerCase() === de.toLowerCase())) {
-            return alert("Card already exists!");
+        .card-box {
+            background: var(--card-bg);
+            padding: 16px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
-        await fetch(`${API_URL}/cards`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ user_id: currentUser.id, deck_id: activeDeckId, de, en, ex_de, ex_en, stage: 0 })
-        });
+        .header { display: flex; justify-content: space-between; align-items: center; }
 
-        document.getElementById('input-de').value = '';
-        document.getElementById('input-en').value = '';
-        document.getElementById('input-ex-de').value = '';
-        document.getElementById('input-ex-en').value = '';
-
-        showToast("Card Saved!");
-        await fetchCardsAndRenderHomeStats();
-    }
-
-    function getWeightedRandomCard() {
-        let pool = currentCards.filter(c => c.stage < 4);
-        if (pool.length === 0) pool = currentCards;
-        if (pool.length === 0) return null;
-
-        if (pool.length > 1 && lastCardId !== null) {
-            pool = pool.filter(c => c.id !== lastCardId);
+        select, button, input {
+            font-size: 15px;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            outline: none;
+            width: 100%;
         }
 
-        let weightedArray = [];
-        pool.forEach(card => {
-            let weight = (card.stage === 0) ? 4 : (4 - card.stage);
-            for (let i = 0; i < weight; i++) {
-                weightedArray.push(card);
-            }
-        });
-
-        const selected = weightedArray[Math.floor(Math.random() * weightedArray.length)];
-        if (selected) lastCardId = selected.id;
-        return selected;
-    }
-
-    function loadNextCard() {
-        const cardEl = document.getElementById('card');
-        cardEl.classList.add('no-anim');
-        cardEl.classList.remove('flipped');
-
-        const card = getWeightedRandomCard();
-
-        if (!card) {
-            document.getElementById('game-container').classList.add('hidden');
-            document.getElementById('empty-state').classList.remove('hidden');
-            return;
+        input.input-error {
+            border: 2px solid var(--danger) !important;
+            background-color: #fff0f1;
         }
 
-        document.getElementById('game-container').classList.remove('hidden');
-        document.getElementById('empty-state').classList.add('hidden');
-
-        currentCardIndex = currentCards.findIndex(c => c.id === card.id);
-        const isGermanFront = Math.random() > 0.5;
-
-        if (isGermanFront) {
-            document.getElementById('front-text').textContent = card.de;
-            document.getElementById('front-subtext').textContent = "Side 1 (Tap to flip)";
-            document.getElementById('back-text').textContent = card.en;
-            document.getElementById('back-example').textContent = card.ex_de ? `"${card.ex_de}"` : '';
-        } else {
-            document.getElementById('front-text').textContent = card.en;
-            document.getElementById('front-subtext').textContent = "Side 2 (Tap to flip)";
-            document.getElementById('back-text').textContent = card.de;
-            document.getElementById('back-example').textContent = card.ex_en ? `"${card.ex_en}"` : '';
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            margin-top: 10px;
+            cursor: pointer;
         }
 
-        setTimeout(() => {
-            cardEl.classList.remove('no-anim');
-        }, 50);
-    }
+        .checkbox-container input {
+            width: auto;
+            cursor: pointer;
+        }
 
-    function flipCard() {
-        document.getElementById('card').classList.toggle('flipped');
-    }
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
 
-    async function rateCard(success) {
-        if (currentCardIndex === -1) return;
-        const card = currentCards[currentCardIndex];
+        button:active { transform: scale(0.98); opacity: 0.9; }
 
-        let newStage = success ? Math.min(card.stage + 1, 4) : 0;
-        card.stage = newStage;
+        .flashcard-container { perspective: 1000px; height: 250px; margin: 10px 0; }
+        .flashcard {
+            width: 100%; height: 100%; position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
+            cursor: pointer;
+        }
+        .flashcard.no-anim { transition: none !important; }
+        .flashcard.flipped { transform: rotateY(180deg); }
+        .card-face {
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; border-radius: 16px;
+            border: 1px solid #e1e8ed; background: white; padding: 20px; box-sizing: border-box; text-align: center;
+        }
+        .card-back { transform: rotateY(180deg); background-color: #f8fafc; }
+        .card-word { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+        .card-example { font-size: 14px; color: #64748b; font-style: italic; }
 
-        await fetch(`${API_URL}/cards?id=eq.${card.id}`, {
-            method: "PATCH",
-            headers,
-            body: JSON.stringify({ stage: newStage })
-        });
+        .controls { display: flex; gap: 10px; }
+        .controls button { flex: 1; padding: 14px; font-size: 16px; border-radius: 12px; }
+        .btn-again { background-color: var(--danger); }
+        .btn-good { background-color: var(--success); }
 
-        loadNextCard();
-    }
-</script>
+        .form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+        .form-group label { font-size: 13px; font-weight: 600; color: #64748b; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; text-align: center; }
+        .stat-box { padding: 10px 6px; border-radius: 10px; background: #f8fafc; }
+        .stat-box.to-learn { border-top: 4px solid var(--primary); }
+        .stat-box.practiced { border-top: 4px solid var(--warning); }
+        .stat-box.learned { border-top: 4px solid var(--success); }
+        .stat-number { font-size: 18px; font-weight: bold; margin-top: 4px; }
+
+        .deck-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 14px; border: 2px solid #e0e0e0; border-radius: 12px; margin-bottom: 8px;
+            cursor: pointer; transition: all 0.2s ease;
+        }
+        .deck-item:active { transform: scale(0.98); }
+        .deck-item.selected { border-color: var(--primary); background-color: #e6f7ff; }
+
+        .deck-badge {
+            font-size: 11px; padding: 2px 8px; border-radius: 10px;
+            background-color: #e2e8f0; color: #475569; font-weight: 600;
+        }
+
+        .error-message { color: var(--danger); font-size: 12px; display: none; margin-top: 2px; }
+        .toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: #2f3542; color: white; padding: 10
