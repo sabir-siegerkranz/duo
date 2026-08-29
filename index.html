@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DuoCards - Refactored Edition</title>
+    <title>DuoCards - Fixed Edition</title>
     <style>
         :root {
             --primary: #00a8ff;
@@ -67,7 +67,6 @@
 
         button:active { transform: scale(0.98); opacity: 0.9; }
 
-        /* Card Mechanics Fix (No-Transition Instant Reset Class) */
         .flashcard-container { perspective: 1000px; height: 250px; margin: 10px 0; }
         .flashcard {
             width: 100%; height: 100%; position: relative;
@@ -104,15 +103,24 @@
 
         .deck-item {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 12px; border: 1px solid #e0e0e0; border-radius: 10px; margin-bottom: 8px;
+            padding: 14px; border: 2px solid #e0e0e0; border-radius: 12px; margin-bottom: 8px;
+            cursor: pointer; transition: all 0.2s ease;
         }
-        .error-message { color: var(--danger); font-size: 12px; display: none; margin-top: -6px; margin-bottom: 8px; }
+        .deck-item:active { transform: scale(0.98); }
+        .deck-item.selected { border-color: var(--primary); background-color: #e6f7ff; }
+
+        .deck-badge {
+            font-size: 11px; padding: 2px 8px; border-radius: 10px;
+            background-color: #e2e8f0; color: #475569; font-weight: 600;
+        }
+
+        .error-message { color: var(--danger); font-size: 12px; display: none; margin-top: 2px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- 1. LOGIN VIEW -->
+    <!-- LOGIN VIEW -->
     <div id="view-login" class="card-box" style="text-align: center;">
         <h2 style="margin-top: 0;">Sign In</h2>
         <div class="form-group">
@@ -126,12 +134,10 @@
         <button id="login-btn" style="margin-top: 10px; padding: 14px;" onclick="login()">Log In</button>
     </div>
 
-    <!-- 2. HOME SCREEN VIEW (Deck Management & Stats) -->
+    <!-- HOME VIEW -->
     <div id="view-home" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
         <div class="card-box header">
-            <div>
-                <strong>User: </strong><span id="user-display"></span>
-            </div>
+            <div><strong>User: </strong><span id="user-display"></span></div>
             <button style="background: none; color: #94a3b8; border: none; padding: 0; font-size: 12px; width: auto;" onclick="logout()">Logout</button>
         </div>
 
@@ -144,8 +150,8 @@
         <div class="card-box">
             <h3 style="margin-top:0;">Deck Overview</h3>
             <div class="form-group">
-                <label>Select Deck for Stats/Management:</label>
-                <select id="homeDeckSelector" onchange="renderHomeStats()"></select>
+                <label>Select Deck:</label>
+                <select id="homeDeckSelector" onchange="selectDeckFromDropdown()"></select>
             </div>
             <div class="stats-grid">
                 <div class="stat-box to-learn">
@@ -161,15 +167,15 @@
                     <div class="stat-number" id="home-count-learned">0</div>
                 </div>
             </div>
-            <button style="background-color: var(--success); padding: 14px; font-size: 16px;" onclick="startPracticeFromHome()">▶ Play / Practice Deck</button>
-            <button style="margin-top: 8px; background-color: #718096;" onclick="openAddCardModal()">+ Add Cards to Deck</button>
+            <button style="background-color: var(--success); padding: 14px; font-size: 16px;" onclick="startPracticeFromHome()">▶ Play Deck</button>
+            <button style="margin-top: 8px; background-color: #718096;" onclick="openAddCardModal()">+ Add Cards</button>
         </div>
     </div>
 
-    <!-- 3. GAME VIEW (Practice Screen) -->
+    <!-- GAME VIEW -->
     <div id="view-game" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
         <div class="card-box header">
-            <button style="width: auto; padding: 6px 12px; background-color: #a0aec0;" onclick="exitGameToHome()">← Exit to Home</button>
+            <button style="width: auto; padding: 6px 12px; background-color: #a0aec0;" onclick="exitGameToHome()">← Exit</button>
             <div style="font-weight: bold;" id="game-deck-title">Deck</div>
         </div>
 
@@ -194,33 +200,39 @@
                 </div>
             </div>
             <div id="empty-state" class="hidden" style="text-align: center; padding: 40px 0;">
-                🎉 All available cards in this deck are completed!
+                🎉 All cards in this deck completed!
             </div>
         </div>
     </div>
 
-    <!-- 4. ADD CARD VIEW -->
+    <!-- ADD CARD VIEW -->
     <div id="view-add" class="card-box hidden">
-        <button style="width: auto; padding: 6px 12px; background-color: #a0aec0; margin-bottom: 12px;" onclick="exitAddToHome()">← Back to Home</button>
-        <h3 style="margin-top:0;">Add Card</h3>
+        <button style="width: auto; padding: 6px 12px; background-color: #a0aec0; margin-bottom: 12px;" onclick="exitAddToHome()">← Back</button>
+        <h3 style="margin-top:0;" id="add-card-title">Add Card</h3>
+        
         <div class="form-group">
-            <label>German Word/Phrase:</label>
-            <input type="text" id="input-de" oninput="handleInputChange()">
-            <div id="de-error" class="error-message">Word already exists in this deck!</div>
+            <label id="label-side-a">German Word/Phrase:</label>
+            <input type="text" id="input-de" onfocus="lastFocused = 'de'" oninput="handleInputChange('de')" onblur="autoAddArticle()">
+            <div id="de-error" class="error-message">Word already exists in deck!</div>
         </div>
+        
         <div class="form-group">
-            <label>English Translation:</label>
-            <input type="text" id="input-en" oninput="handleInputChange()">
+            <label id="label-side-b">English Translation:</label>
+            <input type="text" id="input-en" onfocus="lastFocused = 'en'" oninput="handleInputChange('en')">
         </div>
-        <button id="btn-translate" style="margin-bottom: 12px; background-color: #3b82f6;" onclick="autoTranslateAPI()">⚡ Auto-Translate</button>
-        <div class="form-group">
-            <label>Example Sentence (German):</label>
-            <input type="text" id="input-ex-de">
+        
+        <div id="standard-deck-fields">
+            <button id="btn-translate" style="margin-bottom: 12px; background-color: #3b82f6;" onclick="autoTranslateAPI()">⚡ Auto-Translate</button>
+            <div class="form-group">
+                <label>Example Sentence (German):</label>
+                <input type="text" id="input-ex-de">
+            </div>
+            <div class="form-group">
+                <label>Example Sentence (English):</label>
+                <input type="text" id="input-ex-en">
+            </div>
         </div>
-        <div class="form-group">
-            <label>Example Sentence (English):</label>
-            <input type="text" id="input-ex-en">
-        </div>
+
         <button id="btn-save-card" onclick="addCard()">Save Card</button>
     </div>
 </div>
@@ -241,8 +253,8 @@
     let activeDeckId = null;
     let currentCards = [];
     let currentCardIndex = -1;
+    let lastFocused = 'de';
 
-    // Login Logic
     async function login() {
         const usernameInput = document.getElementById('login-username').value.trim();
         const passwordInput = document.getElementById('login-password').value.trim();
@@ -281,16 +293,16 @@
         document.getElementById('view-login').classList.remove('hidden');
     }
 
-    // Decks Management (Home Screen)
     async function fetchDecks() {
         const res = await fetch(`${API_URL}/decks?user_id=eq.${currentUser.id}`, { headers });
         decks = await res.json();
 
         if (!decks || decks.length === 0) {
-            await createDeck("General Words");
+            await createDeck("General Words", "normal");
             return;
         }
 
+        if (!activeDeckId && decks.length > 0) activeDeckId = decks[0].id;
         renderHomeDecks();
     }
 
@@ -301,38 +313,59 @@
         selectorEl.innerHTML = '';
 
         decks.forEach(d => {
-            const item = document.createElement('div');
-            item.className = 'deck-item';
-            item.innerHTML = `<strong>${d.name}</strong>`;
-            listEl.appendChild(item);
-
             const opt = document.createElement('option');
             opt.value = d.id;
-            opt.textContent = d.name;
+            opt.textContent = `${d.name} ${d.type === 'free' ? '(Free)' : ''}`;
             selectorEl.appendChild(opt);
+
+            const item = document.createElement('div');
+            item.className = 'deck-item';
+            if (d.id == activeDeckId) item.classList.add('selected');
+
+            const isFree = d.type === 'free';
+            item.innerHTML = `
+                <strong>${d.name}</strong>
+                <span class="deck-badge">${isFree ? 'Free Deck' : 'Standard'}</span>
+            `;
+            item.onclick = () => selectDeck(d.id);
+
+            listEl.appendChild(item);
         });
 
-        activeDeckId = decks[0].id;
+        selectorEl.value = activeDeckId;
         fetchCardsAndRenderHomeStats();
     }
 
-    async function createDeck(deckName) {
+    function selectDeck(deckId) {
+        activeDeckId = deckId;
+        renderHomeDecks();
+    }
+
+    function selectDeckFromDropdown() {
+        activeDeckId = document.getElementById('homeDeckSelector').value;
+        renderHomeDecks();
+    }
+
+    async function createDeck(deckName, deckType) {
         await fetch(`${API_URL}/decks`, {
             method: "POST",
             headers,
-            body: JSON.stringify({ name: deckName, user_id: currentUser.id })
+            body: JSON.stringify({ name: deckName, type: deckType, user_id: currentUser.id })
         });
         await fetchDecks();
     }
 
     async function createNewDeck() {
         const name = prompt("Enter new deck name:");
-        if (name) await createDeck(name);
+        if (!name) return;
+
+        const isFree = confirm("Click OK for 'Free Deck' (2-sided, no auto-translate)\nClick Cancel for 'Standard Deck' (with translation & examples)");
+        const type = isFree ? "free" : "normal";
+
+        await createDeck(name, type);
     }
 
-    // Cards Fetching & Home Stats
     async function fetchCardsAndRenderHomeStats() {
-        activeDeckId = document.getElementById('homeDeckSelector').value || activeDeckId;
         if (!activeDeckId) return;
 
         const res = await fetch(`${API_URL}/cards?deck_id=eq.${activeDeckId}&user_id=eq.${currentUser.id}`, { headers });
@@ -350,11 +383,6 @@
         document.getElementById('home-count-learned').textContent = learned;
     }
 
-    function renderHomeStats() {
-        fetchCardsAndRenderHomeStats();
-    }
-
-    // View Switching
     function startPracticeFromHome() {
         const selectedDeck = decks.find(d => d.id == activeDeckId);
         document.getElementById('game-deck-title').textContent = selectedDeck ? selectedDeck.name : 'Practice';
@@ -370,6 +398,23 @@
     }
 
     function openAddCardModal() {
+        const selectedDeck = decks.find(d => d.id == activeDeckId);
+        const isFree = selectedDeck && selectedDeck.type === 'free';
+
+        const extraFields = document.getElementById('standard-deck-fields');
+        const labelA = document.getElementById('label-side-a');
+        const labelB = document.getElementById('label-side-b');
+
+        if (isFree) {
+            extraFields.classList.add('hidden');
+            labelA.textContent = "Front Side:";
+            labelB.textContent = "Back Side:";
+        } else {
+            extraFields.classList.remove('hidden');
+            labelA.textContent = "German Word/Phrase:";
+            labelB.textContent = "English Translation:";
+        }
+
         document.getElementById('view-home').classList.add('hidden');
         document.getElementById('view-add').classList.remove('hidden');
     }
@@ -380,14 +425,15 @@
         fetchCardsAndRenderHomeStats();
     }
 
-    // Duplicate Check & Auto-Translate Input Logic
-    function handleInputChange() {
+    function handleInputChange(field) {
         const deInput = document.getElementById('input-de');
         const deVal = deInput.value.trim().toLowerCase();
         const deError = document.getElementById('de-error');
         const btnSave = document.getElementById('btn-save-card');
 
-        // Check for duplicate German string
+        document.getElementById('input-ex-de').value = '';
+        document.getElementById('input-ex-en').value = '';
+
         const isDuplicate = currentCards.some(c => c.de.toLowerCase() === deVal);
 
         if (isDuplicate && deVal !== '') {
@@ -401,34 +447,70 @@
         }
     }
 
-    // Translation Engine & Contextual Example Generator
-    async function autoTranslateAPI() {
-        const deInput = document.getElementById('input-de').value.trim();
-        const enInput = document.getElementById('input-en').value.trim();
-        const btn = document.getElementById('btn-translate');
+    // Auto-Adds German Definite Article (der/die/das) for Nouns
+    async function autoAddArticle() {
+        const selectedDeck = decks.find(d => d.id == activeDeckId);
+        if (selectedDeck && selectedDeck.type === 'free') return; // Skip for Free decks
 
-        if (!deInput && !enInput) return alert("Enter German or English text.");
+        const deInput = document.getElementById('input-de');
+        let word = deInput.value.trim();
+
+        if (!word) return;
+
+        // Skip if article is already provided
+        if (/^(der|die|das)\s+/i.test(word)) return;
+
+        // Detect if word is capitalized (German Noun)
+        if (/^[A-ZÄÖÜ]/.test(word)) {
+            try {
+                const res = await fetch(`https://de.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&titles=${encodeURIComponent(word)}&format=json&origin=*`);
+                const data = await res.json();
+                const pages = data.query.pages;
+                const pageId = Object.keys(pages)[0];
+
+                if (pageId !== "-1") {
+                    const extract = pages[pageId].extract || "";
+                    if (/\b(der|die|das)\s+/i.test(extract)) {
+                        const match = extract.match(/\b(der|die|das)\s+/i);
+                        if (match) {
+                            const article = match[1].toLowerCase();
+                            deInput.value = `${article} ${word}`;
+                        }
+                    }
+                }
+            } catch (e) {
+                // Ignore API failures quietly
+            }
+        }
+    }
+
+    async function autoTranslateAPI() {
+        const deInput = document.getElementById('input-de');
+        const enInput = document.getElementById('input-en');
+        const btn = document.getElementById('btn-translate');
 
         btn.innerText = "Translating...";
 
         try {
-            if (deInput) {
-                const res = await fetch(`https://lingva.ml/api/v1/de/en/${encodeURIComponent(deInput)}`);
+            if (lastFocused === 'de' && deInput.value.trim() !== '') {
+                const query = deInput.value.trim();
+                const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(query)}&langpair=de|en`);
                 const data = await res.json();
-                const translation = data.translation || deInput;
-                
-                document.getElementById('input-en').value = translation;
-                document.getElementById('input-ex-de').value = `Ich lerne das Wort "${deInput}".`;
-                document.getElementById('input-ex-en').value = `I am learning the word "${translation}".`;
-            } else if (enInput) {
-                const res = await fetch(`https://lingva.ml/api/v1/en/de/${encodeURIComponent(enInput)}`);
-                const data = await res.json();
-                const translation = data.translation || enInput;
 
-                document.getElementById('input-de').value = translation;
-                document.getElementById('input-ex-de').value = `Ich lerne das Wort "${translation}".`;
-                document.getElementById('input-ex-en').value = `I am learning the word "${enInput}".`;
-                handleInputChange();
+                let translated = data.responseData.translatedText;
+                translated = translated.replace(/^Acc\. to/i, "after").replace(/^the /i, "");
+
+                enInput.value = translated;
+                generateSentences(query, translated);
+            } else if (lastFocused === 'en' && enInput.value.trim() !== '') {
+                const query = enInput.value.trim();
+                const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(query)}&langpair=en|de`);
+                const data = await res.json();
+
+                let translated = data.responseData.translatedText;
+                deInput.value = translated;
+                generateSentences(translated, query);
+                handleInputChange('de');
             }
         } catch (e) {
             alert("Translation failed. Check connection.");
@@ -437,15 +519,19 @@
         }
     }
 
+    function generateSentences(deWord, enWord) {
+        document.getElementById('input-ex-de').value = `Das Wort "${deWord}" ist wichtig.`;
+        document.getElementById('input-ex-en').value = `The word "${enWord}" is important.`;
+    }
+
     async function addCard() {
         const de = document.getElementById('input-de').value.trim();
         const en = document.getElementById('input-en').value.trim();
         const ex_de = document.getElementById('input-ex-de').value.trim();
         const ex_en = document.getElementById('input-ex-en').value.trim();
 
-        if (!de || !en) return alert("Words are required.");
+        if (!de || !en) return alert("Both sides are required.");
 
-        // Double check duplicate block
         if (currentCards.some(c => c.de.toLowerCase() === de.toLowerCase())) {
             return alert("Card already exists!");
         }
@@ -466,15 +552,11 @@
         exitAddToHome();
     }
 
-    // Spaced-Repetition Weighted Algorithm & Instant Front-Face Reset
     function getWeightedRandomCard() {
-        // Filter out stage 4 (learned) cards unless no other cards remain
         let pool = currentCards.filter(c => c.stage < 4);
-        if (pool.length === 0) pool = currentCards; // Fallback
-
+        if (pool.length === 0) pool = currentCards;
         if (pool.length === 0) return null;
 
-        // Stage 0 (To Learn) has weight 4, Stage 1-3 (Practiced) has weight 2
         let weightedArray = [];
         pool.forEach(card => {
             let weight = (card.stage === 0) ? 4 : (4 - card.stage);
@@ -488,8 +570,6 @@
 
     function loadNextCard() {
         const cardEl = document.getElementById('card');
-
-        // Glitch Fix: Immediately strip animations and force unflip to front face before changing text
         cardEl.classList.add('no-anim');
         cardEl.classList.remove('flipped');
 
@@ -507,20 +587,18 @@
         currentCardIndex = currentCards.findIndex(c => c.id === card.id);
         const isGermanFront = Math.random() > 0.5;
 
-        // Render card content
         if (isGermanFront) {
             document.getElementById('front-text').textContent = card.de;
-            document.getElementById('front-subtext').textContent = "German (Tap to flip)";
+            document.getElementById('front-subtext').textContent = "Side 1 (Tap to flip)";
             document.getElementById('back-text').textContent = card.en;
             document.getElementById('back-example').textContent = card.ex_de ? `"${card.ex_de}"` : '';
         } else {
             document.getElementById('front-text').textContent = card.en;
-            document.getElementById('front-subtext').textContent = "English (Tap to flip)";
+            document.getElementById('front-subtext').textContent = "Side 2 (Tap to flip)";
             document.getElementById('back-text').textContent = card.de;
             document.getElementById('back-example').textContent = card.ex_en ? `"${card.ex_en}"` : '';
         }
 
-        // Re-enable flip transition animation after content load completes
         setTimeout(() => {
             cardEl.classList.remove('no-anim');
         }, 50);
@@ -534,7 +612,6 @@
         if (currentCardIndex === -1) return;
         const card = currentCards[currentCardIndex];
 
-        // Stage Algorithm: Drop to 0 on fail, increment on success
         let newStage = success ? Math.min(card.stage + 1, 4) : 0;
         card.stage = newStage;
 
