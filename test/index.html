@@ -120,6 +120,19 @@
         .spk { background: none; border: none; color: var(--primary); font-size: 15px; line-height: 1; padding: 2px 2px; width: auto; flex-shrink: 0; align-self: center; }
         .spk.hidden { display: none; }
 
+        /* matching mini-game */
+        .match-title { text-align: center; font-weight: 700; font-size: 16px; margin-bottom: 14px; }
+        .match-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .match-tile {
+            min-height: 62px; border: 2px solid #e2e8f0; border-radius: 12px; background: #fff; color: var(--text);
+            font-size: 14px; font-weight: 600; padding: 10px; width: 100%;
+            display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.25;
+            transition: background 0.15s ease, border-color 0.15s ease, opacity 0.2s ease;
+        }
+        .match-tile.sel { border-color: var(--primary); background: #e6f7ff; }
+        .match-tile.wrong { border-color: var(--danger); background: #fff0f1; }
+        .match-tile.done { border-color: var(--success); background: #eafff1; color: #16a34a; opacity: 0.5; pointer-events: none; }
+
         .ex-picker { display: flex; flex-direction: column; gap: 6px; margin: -2px 0 12px; }
         .ex-chip { font-size: 12px; padding: 8px 10px; border-radius: 9px; background: #f1f5f9; color: #475569; border: 1px solid transparent; cursor: pointer; line-height: 1.35; text-align: left; }
         .ex-chip.active { background: #e6f7ff; border-color: var(--primary); color: var(--text); }
@@ -453,6 +466,10 @@
                     <button class="btn-good" id="btn-correct" onclick="handleOutcome(true)">Correct</button>
                 </div>
                 <div class="swipe-hint" style="text-align:center; font-size:11px; color:#94a3b8; margin-top:8px;">Swipe left = Wrong · right = Correct · tap = flip</div>
+            </div>
+            <div id="match-container" class="hidden">
+                <div class="match-title">Match the pairs</div>
+                <div class="match-grid" id="match-grid"></div>
             </div>
             <div id="empty-state" class="hidden" style="text-align: center; padding: 40px 0;">
                 🎉 All cards in this deck completed!
@@ -1455,6 +1472,14 @@
         }
     }
 
+    const MATCH_SIZE = 5;       // pairs per matching round
+    const MATCH_MAX_ROUNDS = 4; // per practice session
+
+    function shuffleArr(a) {
+        for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+        return a;
+    }
+
     async function buildSessionQueue() {
         const deck = decks.find(d => d.id == activeDeckId);
         const limit = deck && deck.daily_new_limit != null ? deck.daily_new_limit : 0;
@@ -1464,16 +1489,19 @@
             .filter(c => (Number(c.reps) > 0 || Number(c.lapses) > 0) && isDue(c))
             .sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
 
-        let fresh = allCards
+        const newCards = allCards
             .filter(c => Number(c.reps) === 0 && Number(c.lapses) === 0)
             .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
 
+        // never-tested cards get introduced via matching rounds first
+        const matchPool = newCards.slice(0, MATCH_SIZE * MATCH_MAX_ROUNDS);
+        let fresh = newCards.slice(matchPool.length);
         if (!unlimited) {
             const doneNew = await newDoneToday(activeDeckId);
             fresh = fresh.slice(0, Math.max(0, limit - doneNew));
         }
 
-        // interleave: roughly every 4th card is a new one
+        // interleave: roughly every 4th flashcard is a new one
         const queue = [];
         let di = 0, fi = 0, i = 0;
         while (di < due.length || fi < fresh.length) {
@@ -1482,6 +1510,17 @@
             else if (fi < fresh.length) queue.push(fresh[fi++]);
             i++;
         }
+
+        // sprinkle "match 5 pairs" rounds every 10–15 cards
+        const rounds = [];
+        for (let k = 0; k + MATCH_SIZE <= matchPool.length; k += MATCH_SIZE) rounds.push(matchPool.slice(k, k + MATCH_SIZE));
+        let pos = 10 + Math.floor(Math.random() * 6);
+        rounds.forEach(r => {
+            const at = Math.min(pos, queue.length);
+            queue.splice(at, 0, { __match: true, cards: r });
+            pos = at + 1 + 10 + Math.floor(Math.random() * 6);
+        });
+
         sessionQueue = queue;
     }
 
@@ -1503,6 +1542,9 @@
     }
 
     function exitGameToHome() {
+        matchState = null;
+        isTransitioning = false;
+        document.getElementById('match-container').classList.add('hidden');
         showView('view-home');
         renderHomeStats();       // instant: in-memory cards were mutated by schedule() during practice
         fetchStats();
@@ -1524,7 +1566,16 @@
         cardEl.classList.remove('flipped');
         resetCardPos();
 
-        currentCard = sessionQueue.shift() || null;
+        const next = sessionQueue.shift() || null;
+
+        if (next && next.__match) {
+            currentCard = null;
+            showMatchRound(next.cards);
+            return;   // showMatchRound holds isTransitioning until the round finishes
+        }
+
+        currentCard = next;
+        document.getElementById('match-container').classList.add('hidden');
 
         if (!currentCard) {
             document.getElementById('game-container').classList.add('hidden');
@@ -1541,6 +1592,84 @@
 
         setTimeout(() => cardEl.classList.remove('no-anim'), 50);
         isTransitioning = false;
+    }
+
+    // ------------------------------------------------------------------
+    // Matching mini-game
+    // ------------------------------------------------------------------
+    let matchState = null;
+
+    function showMatchRound(cards) {
+        isTransitioning = true;   // block swipe/tap grading of the hidden flashcard
+        document.getElementById('game-container').classList.add('hidden');
+        document.getElementById('empty-state').classList.add('hidden');
+        document.getElementById('match-container').classList.remove('hidden');
+
+        matchState = { pairs: cards, matched: 0, sel: null, lock: false };
+
+        const tiles = [];
+        cards.forEach(c => {
+            tiles.push({ id: c.id, side: 'de', text: (c.emoji ? c.emoji + ' ' : '') + c.de });
+            tiles.push({ id: c.id, side: 'en', text: c.en });
+        });
+        shuffleArr(tiles);
+
+        const grid = document.getElementById('match-grid');
+        grid.textContent = '';
+        tiles.forEach(t => {
+            const el = document.createElement('button');
+            el.className = 'match-tile';
+            el.type = 'button';
+            el.textContent = t.text;
+            el.dataset.id = t.id;
+            el.dataset.side = t.side;
+            el.onclick = () => onMatchTap(el);
+            grid.appendChild(el);
+        });
+    }
+
+    function onMatchTap(el) {
+        if (!matchState || matchState.lock || el.classList.contains('done')) return;
+        if (matchState.sel === el) { el.classList.remove('sel'); matchState.sel = null; return; }
+        if (!matchState.sel) { el.classList.add('sel'); matchState.sel = el; return; }
+
+        const a = matchState.sel, b = el;
+        if (a.dataset.id === b.dataset.id && a.dataset.side !== b.dataset.side) {
+            a.classList.remove('sel'); a.classList.add('done'); b.classList.add('done');
+            matchState.sel = null;
+            matchState.matched++;
+            const card = matchState.pairs.find(c => c.id === a.dataset.id);
+            if (card) { matchGrade(card); speakGerman(card.de); }
+            if (matchState.matched === matchState.pairs.length) setTimeout(finishMatchRound, 550);
+        } else {
+            matchState.lock = true;
+            a.classList.add('wrong'); b.classList.add('wrong');
+            setTimeout(() => {
+                a.classList.remove('wrong', 'sel'); b.classList.remove('wrong');
+                matchState.sel = null; matchState.lock = false;
+            }, 550);
+        }
+    }
+
+    // A correct match introduces a never-tested card (reps 0 -> scheduled like a
+    // first "Correct"). For cards already in review it's just logged, no reschedule.
+    function matchGrade(card) {
+        const wasNew = (Number(card.reps) || 0) === 0 && (Number(card.lapses) || 0) === 0;
+        if (wasNew) {
+            const patch = schedule(card, true);
+            persistReview(card, true, patch, true);
+        } else {
+            const patch = { last_reviewed_at: new Date().toISOString() };
+            card.last_reviewed_at = patch.last_reviewed_at;
+            persistReview(card, true, { ...patch, interval_days: Number(card.interval_days) || 0 }, false);
+        }
+    }
+
+    function finishMatchRound() {
+        matchState = null;
+        document.getElementById('match-container').classList.add('hidden');
+        isTransitioning = false;
+        loadNextCard();
     }
 
     // Replace the target German word in an example with a blank, so a card that
