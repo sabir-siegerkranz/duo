@@ -114,6 +114,22 @@
         .card-word { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
         .card-example { font-size: 14px; color: #64748b; font-style: italic; }
         .card-hint { font-size: 16px; color: var(--text); font-weight: 400; margin-top: 12px; max-width: 90%; }
+        .card-emoji { font-size: 44px; line-height: 1; margin-bottom: 6px; min-height: 4px; }
+
+        .ex-picker { display: flex; flex-direction: column; gap: 6px; margin: -2px 0 12px; }
+        .ex-chip { font-size: 12px; padding: 8px 10px; border-radius: 9px; background: #f1f5f9; color: #475569; border: 1px solid transparent; cursor: pointer; line-height: 1.35; text-align: left; }
+        .ex-chip.active { background: #e6f7ff; border-color: var(--primary); color: var(--text); }
+
+        .bulk-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #64748b; margin: 14px 0 4px; }
+        .bulk-head button { width: auto; background: none; border: none; color: var(--primary); font-size: 12px; padding: 2px 6px; }
+        .bulk-row { display: flex; align-items: flex-start; gap: 8px; padding: 10px 2px; border-bottom: 1px solid #eef2f7; }
+        .bulk-row.dupe { opacity: .5; }
+        .bulk-row input[type=checkbox] { width: auto; margin-top: 3px; flex-shrink: 0; }
+        .bulk-main { flex: 1; font-size: 14px; min-width: 0; word-break: break-word; }
+        .bulk-main .bm-de { font-weight: 700; }
+        .bulk-main .bm-ex { font-size: 12px; color: #94a3b8; font-style: italic; margin-top: 2px; }
+        .bulk-tag { font-size: 10px; background: #e2e8f0; color: #475569; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+        .bulk-speak { width: auto; background: #f1f5f9; border: none; padding: 4px 8px; font-size: 13px; border-radius: 8px; flex-shrink: 0; }
 
         .controls { display: flex; gap: 10px; }
         .controls button { flex: 1; padding: 14px; font-size: 16px; border-radius: 12px; }
@@ -346,6 +362,7 @@
                     <button id="avatar-btn" class="avatar" onclick="toggleProfileMenu(event)">?</button>
                     <div id="profile-menu" class="profile-menu hidden">
                         <div class="profile-menu-name" id="menu-username">User</div>
+                        <button onclick="toggleTts()">Pronunciation: <span id="tts-state">on</span></button>
                         <button onclick="logout()">Log out</button>
                     </div>
                 </div>
@@ -403,10 +420,12 @@
                 <div class="flashcard-container" id="flashcard-container">
                     <div class="flashcard" id="card" onclick="onCardTap()">
                         <div class="card-face card-front">
+                            <div class="card-emoji" id="front-emoji"></div>
                             <div class="card-word" id="front-text">Loading...</div>
                             <div class="card-hint" id="front-hint"></div>
                         </div>
                         <div class="card-face card-back">
+                            <div class="card-emoji" id="back-emoji"></div>
                             <div class="card-word" id="back-text">...</div>
                             <div class="card-example" id="back-example">...</div>
                         </div>
@@ -428,36 +447,57 @@
     <!-- ADD / EDIT CARD VIEW -->
     <div id="view-add" class="card-box hidden">
         <button style="width: auto; padding: 6px 12px; background-color: #a0aec0; margin-bottom: 12px;" onclick="exitAddToHome()">← Back</button>
-        <h3 style="margin-top:0;" id="add-card-title">Add Card</h3>
 
-        <div class="form-group">
-            <label id="label-side-a">German Word/Phrase:</label>
-            <input type="text" id="input-de" onfocus="lastFocused = 'de'" oninput="handleInputChange()">
-            <div id="de-error" class="error-message">Word already exists in deck!</div>
+        <div class="seg" id="add-mode-seg" style="margin-bottom: 14px;">
+            <button data-m="single" class="active" onclick="setAddMode('single')">Single</button>
+            <button data-m="bulk" onclick="setAddMode('bulk')">Bulk</button>
         </div>
 
-        <div class="form-group">
-            <label id="label-side-b">English Translation:</label>
-            <input type="text" id="input-en" onfocus="lastFocused = 'en'">
-        </div>
+        <div id="add-single">
+            <h3 style="margin-top:0;" id="add-card-title">Add Card</h3>
 
-        <button id="btn-translate" style="margin-bottom: 12px; background-color: #3b82f6;" onclick="enrichCard()">⚡ Auto-Translate</button>
-
-        <div id="standard-deck-fields">
             <div class="form-group">
-                <label>Example Sentence (German):</label>
-                <input type="text" id="input-ex-de">
+                <label>Emoji (optional)</label>
+                <input type="text" id="input-emoji" maxlength="8" placeholder="🐶" style="width:76px; text-align:center; font-size:20px;">
             </div>
-        </div>
 
-        <div id="free-deck-fields" class="hidden">
             <div class="form-group">
-                <label>Hint (optional):</label>
-                <input type="text" id="input-hint" placeholder="A clue shown during practice">
+                <label id="label-side-a">German Word/Phrase:</label>
+                <input type="text" id="input-de" onfocus="lastFocused = 'de'" oninput="handleInputChange()">
+                <div id="de-error" class="error-message">Word already exists in deck!</div>
             </div>
+
+            <div class="form-group">
+                <label id="label-side-b">English Translation:</label>
+                <input type="text" id="input-en" onfocus="lastFocused = 'en'">
+            </div>
+
+            <button id="btn-translate" style="margin-bottom: 12px; background-color: #3b82f6;" onclick="enrichCard()">⚡ Auto-Translate</button>
+
+            <div id="standard-deck-fields">
+                <div class="form-group">
+                    <label>Example Sentence (German):</label>
+                    <input type="text" id="input-ex-de">
+                </div>
+                <div id="example-picker" class="ex-picker"></div>
+            </div>
+
+            <div id="free-deck-fields" class="hidden">
+                <div class="form-group">
+                    <label>Hint (optional):</label>
+                    <input type="text" id="input-hint" placeholder="A clue shown during practice">
+                </div>
+            </div>
+
+            <button id="btn-save-card" onclick="saveCard()">Save Card</button>
         </div>
 
-        <button id="btn-save-card" onclick="saveCard()">Save Card</button>
+        <div id="add-bulk" class="hidden">
+            <p style="font-size:13px; color:#64748b; margin:0 0 8px;">Paste a word list (one per line, or <code>wort - meaning</code>) or any German/English text. ~40 words max.</p>
+            <textarea id="bulk-input" rows="6" style="width:100%; font-size:14px; padding:10px; border-radius:10px; border:1px solid #e0e0e0; resize:vertical;"></textarea>
+            <button id="btn-bulk-extract" style="margin-top:10px; background-color:#3b82f6;" onclick="bulkExtract()">Extract</button>
+            <div id="bulk-results"></div>
+        </div>
     </div>
 
     <!-- MANAGE CARDS VIEW -->
@@ -500,6 +540,8 @@
     const API_URL = SUPABASE_URL + "/rest/v1";
     const API_KEY = "sb_publishable_UR1kiYuEB-m2FeEFc-w5AQ_GU5rpo-a";
     const ENRICH_URL = SUPABASE_URL + "/functions/v1/enrich";
+    const BULK_URL = SUPABASE_URL + "/functions/v1/bulk";
+    const FN_HEADERS = { "Content-Type": "application/json", "Authorization": "Bearer " + API_KEY, "apikey": API_KEY };
 
     const headers = {
         "apikey": API_KEY,
@@ -526,6 +568,7 @@
     let editingCardId = null;
     let settingsDeckId = null;
     let statsRows = [];
+    let bulkItems = [];          // pending rows in the bulk-add review list
     let lastFocused = 'de';
 
     const VIEWS = ['view-login', 'view-home', 'view-game', 'view-add', 'view-cards', 'view-deck-settings'];
@@ -942,10 +985,17 @@
     }
 
     function clearAddForm() {
-        ['input-de', 'input-en', 'input-ex-de', 'input-hint'].forEach(i => { document.getElementById(i).value = ''; });
+        ['input-de', 'input-en', 'input-ex-de', 'input-hint', 'input-emoji'].forEach(i => { document.getElementById(i).value = ''; });
         document.getElementById('input-de').classList.remove('input-error');
         document.getElementById('de-error').style.display = 'none';
         document.getElementById('btn-save-card').disabled = false;
+        document.getElementById('example-picker').textContent = '';
+    }
+
+    function setAddMode(m) {
+        document.querySelectorAll('#add-mode-seg button').forEach(b => b.classList.toggle('active', b.dataset.m === m));
+        document.getElementById('add-single').classList.toggle('hidden', m !== 'single');
+        document.getElementById('add-bulk').classList.toggle('hidden', m !== 'bulk');
     }
 
     function openAddCardModal() {
@@ -955,7 +1005,12 @@
         configureAddForm(deck && deck.type === 'free');
         document.getElementById('add-card-title').textContent = 'Add Card';
         document.getElementById('btn-save-card').textContent = 'Save Card';
+        document.getElementById('add-mode-seg').classList.remove('hidden');
+        setAddMode('single');
         clearAddForm();
+        document.getElementById('bulk-input').value = '';
+        document.getElementById('bulk-results').textContent = '';
+        bulkItems = [];
         showView('view-add');
     }
 
@@ -967,10 +1022,14 @@
         configureAddForm(deck && deck.type === 'free');
         document.getElementById('add-card-title').textContent = 'Edit Card';
         document.getElementById('btn-save-card').textContent = 'Update Card';
+        document.getElementById('add-mode-seg').classList.add('hidden');  // edit is single-only
+        setAddMode('single');
         document.getElementById('input-de').value = c.de || '';
         document.getElementById('input-en').value = c.en || '';
         document.getElementById('input-ex-de').value = c.ex_de || '';
         document.getElementById('input-hint').value = c.hint || '';
+        document.getElementById('input-emoji').value = c.emoji || '';
+        document.getElementById('example-picker').textContent = '';
         document.getElementById('input-de').classList.remove('input-error');
         document.getElementById('de-error').style.display = 'none';
         document.getElementById('btn-save-card').disabled = false;
@@ -979,6 +1038,7 @@
 
     function exitAddToHome() {
         editingCardId = null;
+        bulkItems = [];
         showView('view-home');
         fetchDeckCounts().then(renderHomeDecks);
     }
@@ -993,10 +1053,52 @@
         document.getElementById('btn-save-card').disabled = dup;
     }
 
+    // Local 24h cache of enrichment results, so re-typing a word you looked up
+    // earlier (and churned away from) fills instantly with no network call.
+    const ENRICH_CACHE_KEY = 'duocards_enrich_cache';
+    function enrichKey(term, direction) {
+        return direction + '|' + term.trim().toLowerCase().replace(/^(der|die|das|ein|eine)\s+/i, '').trim();
+    }
+    function enrichCacheGet(term, direction) {
+        try {
+            const all = JSON.parse(localStorage.getItem(ENRICH_CACHE_KEY) || '{}');
+            const e = all[enrichKey(term, direction)];
+            if (e && Date.now() - e.ts < 24 * 3600 * 1000) return e;
+        } catch (err) {}
+        return null;
+    }
+    function enrichCachePut(term, direction, data) {
+        try {
+            const all = JSON.parse(localStorage.getItem(ENRICH_CACHE_KEY) || '{}');
+            all[enrichKey(term, direction)] = { ...data, ts: Date.now() };
+            const keys = Object.keys(all);
+            if (keys.length > 60) keys.sort((a, b) => all[a].ts - all[b].ts).slice(0, keys.length - 60).forEach(k => delete all[k]);
+            localStorage.setItem(ENRICH_CACHE_KEY, JSON.stringify(all));
+        } catch (err) {}
+    }
+
+    function renderExamplePicker(examples) {
+        const wrap = document.getElementById('example-picker');
+        wrap.textContent = '';
+        if (!examples || examples.length < 2) return;   // 0-1 example: nothing to choose
+        const exInput = document.getElementById('input-ex-de');
+        examples.forEach((ex, i) => {
+            const chip = document.createElement('div');
+            chip.className = 'ex-chip' + (exInput.value.trim() === ex ? ' active' : '');
+            chip.textContent = ex;
+            chip.onclick = () => {
+                exInput.value = ex;
+                wrap.querySelectorAll('.ex-chip').forEach(c => c.classList.toggle('active', c === chip));
+            };
+            wrap.appendChild(chip);
+        });
+    }
+
     async function enrichCard() {
         const deInput = document.getElementById('input-de');
         const enInput = document.getElementById('input-en');
         const exDeInput = document.getElementById('input-ex-de');
+        const emojiInput = document.getElementById('input-emoji');
         const btn = document.getElementById('btn-translate');
         const deck = decks.find(d => d.id == activeDeckId);
         const isFree = deck && deck.type === 'free';
@@ -1007,25 +1109,31 @@
         const term = direction === 'de-en' ? haveDe : haveEn;
         if (!term) return showToast("Type a word first", true);
 
-        btn.disabled = true;
-        const orig = btn.textContent;
-        btn.textContent = "Translating…";
-        try {
-            const res = await fetch(ENRICH_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": "Bearer " + API_KEY, "apikey": API_KEY },
-                body: JSON.stringify({ term, direction })
-            });
-            if (!res.ok) throw new Error("enrich " + res.status);
-            const data = await res.json();
-
+        const apply = (data) => {
             if (direction === 'de-en') {
                 if (data.translation) enInput.value = data.translation;
             } else {
                 deInput.value = (data.article ? data.article + ' ' : '') + (data.translation || '');
             }
-            if (!isFree && data.example_de) exDeInput.value = data.example_de;
+            if (data.emoji && !emojiInput.value.trim()) emojiInput.value = data.emoji;
+            const examples = data.examples_de && data.examples_de.length ? data.examples_de : (data.example_de ? [data.example_de] : []);
+            if (!isFree && examples[0]) exDeInput.value = examples[0];
+            renderExamplePicker(isFree ? [] : examples);
             handleInputChange();
+        };
+
+        const cached = enrichCacheGet(term, direction);
+        if (cached) { apply(cached); showToast("From your recent lookups"); return; }
+
+        btn.disabled = true;
+        const orig = btn.textContent;
+        btn.textContent = "Translating…";
+        try {
+            const res = await fetch(ENRICH_URL, { method: "POST", headers: FN_HEADERS, body: JSON.stringify({ term, direction }) });
+            if (!res.ok) throw new Error("enrich " + res.status);
+            const data = await res.json();
+            enrichCachePut(term, direction, data);
+            apply(data);
         } catch (e) {
             showToast("Auto-translate failed — enter it manually", true);
         } finally {
@@ -1039,6 +1147,7 @@
         const en = document.getElementById('input-en').value.trim();
         const ex_de = document.getElementById('input-ex-de').value.trim();
         const hint = document.getElementById('input-hint').value.trim();
+        const emoji = document.getElementById('input-emoji').value.trim();
 
         if (!de || !en) return showToast("Both sides are required", true);
 
@@ -1049,6 +1158,7 @@
         const isFree = deck && deck.type === 'free';
         const body = {
             de, en,
+            emoji: emoji || null,
             hint: isFree ? (hint || null) : null,
             ex_de: isFree ? null : (ex_de || null)
         };
@@ -1117,7 +1227,7 @@
             const txt = document.createElement('div');
             txt.className = 'card-row-text';
             const de = document.createElement('strong');
-            de.textContent = c.de || '';
+            de.textContent = (c.emoji ? c.emoji + ' ' : '') + (c.de || '');
             const en = document.createElement('span');
             en.textContent = ' — ' + (c.en || '');
             txt.appendChild(de);
@@ -1150,6 +1260,130 @@
             showToast("Card deleted");
         } catch (e) {
             showToast("Delete failed", true);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Bulk add — paste a list or text, review a checklist, insert in one go
+    // ------------------------------------------------------------------
+    async function bulkExtract() {
+        const text = document.getElementById('bulk-input').value.trim();
+        if (!text) return showToast("Paste a list or some text first", true);
+        const btn = document.getElementById('btn-bulk-extract');
+        btn.disabled = true;
+        const orig = btn.textContent;
+        btn.textContent = "Reading…";
+        try {
+            const res = await fetch(BULK_URL, { method: "POST", headers: FN_HEADERS, body: JSON.stringify({ text }) });
+            if (!res.ok) throw new Error("bulk " + res.status);
+            const data = await res.json();
+            bulkItems = (data.items || []).map(it => ({ ...it, include: true }));
+            renderBulkResults();
+        } catch (e) {
+            showToast("Couldn't read that — try a shorter list", true);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = orig;
+        }
+    }
+
+    function renderBulkResults() {
+        const wrap = document.getElementById('bulk-results');
+        wrap.textContent = '';
+        if (!bulkItems.length) { wrap.textContent = 'No words found.'; return; }
+
+        const existing = new Set(allCards.map(c => (c.de || '').toLowerCase()));
+        bulkItems.forEach(it => {
+            const full = ((it.article ? it.article + ' ' : '') + it.de).toLowerCase();
+            it.dupe = existing.has(full) || existing.has((it.de || '').toLowerCase());
+            if (it.dupe) it.include = false;
+        });
+        const newCount = bulkItems.filter(i => !i.dupe).length;
+        const dupeCount = bulkItems.length - newCount;
+
+        const head = document.createElement('div');
+        head.className = 'bulk-head';
+        const span = document.createElement('span');
+        span.textContent = newCount + ' new · ' + dupeCount + ' already in deck';
+        const actions = document.createElement('span');
+        const allBtn = document.createElement('button'); allBtn.textContent = 'All';
+        allBtn.onclick = () => { bulkItems.forEach(i => { if (!i.dupe) i.include = true; }); renderBulkResults(); };
+        const noneBtn = document.createElement('button'); noneBtn.textContent = 'None';
+        noneBtn.onclick = () => { bulkItems.forEach(i => i.include = false); renderBulkResults(); };
+        actions.appendChild(allBtn); actions.appendChild(noneBtn);
+        head.appendChild(span); head.appendChild(actions);
+        wrap.appendChild(head);
+
+        bulkItems.forEach(it => {
+            const row = document.createElement('div');
+            row.className = 'bulk-row' + (it.dupe ? ' dupe' : '');
+
+            const cb = document.createElement('input');
+            cb.type = 'checkbox'; cb.checked = it.include; cb.disabled = it.dupe;
+            cb.onchange = () => { it.include = cb.checked; updateBulkSaveBtn(); };
+
+            const main = document.createElement('div');
+            main.className = 'bulk-main';
+            const de = document.createElement('span'); de.className = 'bm-de';
+            de.textContent = (it.emoji ? it.emoji + ' ' : '') + (it.article ? it.article + ' ' : '') + it.de;
+            const en = document.createElement('span'); en.textContent = ' — ' + it.en;
+            main.appendChild(de); main.appendChild(en);
+            if (it.dupe) { const t = document.createElement('span'); t.className = 'bulk-tag'; t.textContent = 'in deck'; main.appendChild(t); }
+            if (it.example_de) { const ex = document.createElement('div'); ex.className = 'bm-ex'; ex.textContent = it.example_de; main.appendChild(ex); }
+
+            const speak = document.createElement('button');
+            speak.className = 'bulk-speak'; speak.textContent = '🔊';
+            speak.onclick = () => { warmTTS(); speakGerman(it.de); };
+
+            row.appendChild(cb); row.appendChild(main); row.appendChild(speak);
+            wrap.appendChild(row);
+        });
+
+        const save = document.createElement('button');
+        save.id = 'btn-bulk-save';
+        save.style.marginTop = '12px';
+        save.onclick = bulkSave;
+        wrap.appendChild(save);
+        updateBulkSaveBtn();
+    }
+
+    function updateBulkSaveBtn() {
+        const save = document.getElementById('btn-bulk-save');
+        if (!save) return;
+        const n = bulkItems.filter(i => i.include && !i.dupe).length;
+        save.textContent = 'Add ' + n + ' card' + (n === 1 ? '' : 's');
+        save.disabled = n === 0;
+    }
+
+    async function bulkSave() {
+        const deck = decks.find(d => d.id == activeDeckId);
+        const isFree = deck && deck.type === 'free';
+        const chosen = bulkItems.filter(i => i.include && !i.dupe);
+        if (!chosen.length) return;
+        const now = new Date().toISOString();
+        const body = chosen.map(it => ({
+            user_id: currentUser.id,
+            deck_id: activeDeckId,
+            de: (it.article ? it.article + ' ' : '') + it.de,
+            en: it.en,
+            emoji: it.emoji || null,
+            ex_de: isFree ? null : (it.example_de || null),
+            hint: isFree ? (it.example_de || null) : null,
+            stage: 0, reps: 0, lapses: 0, interval_days: 0, ease: 2.5, due_at: now
+        }));
+        const save = document.getElementById('btn-bulk-save');
+        if (save) { save.disabled = true; save.textContent = 'Adding…'; }
+        try {
+            await apiFetch(`${API_URL}/cards`, { method: "POST", headers, body: JSON.stringify(body) });
+            logActivity("bulk_added", chosen.length + " cards");
+            showToast(chosen.length + " card" + (chosen.length === 1 ? '' : 's') + " added");
+            document.getElementById('bulk-input').value = '';
+            document.getElementById('bulk-results').textContent = '';
+            bulkItems = [];
+            exitAddToHome();
+        } catch (e) {
+            showToast("Save failed", true);
+            if (save) { save.disabled = false; updateBulkSaveBtn(); }
         }
     }
 
@@ -1239,6 +1473,7 @@
     // ------------------------------------------------------------------
     async function startPracticeFromHome() {
         if (!activeDeckId) return showToast("Select a deck first", true);
+        warmTTS();   // unlock speech synthesis while we're still inside the tap handler
         const deck = decks.find(d => d.id == activeDeckId);
         document.getElementById('game-deck-title').textContent = deck ? deck.name : 'Practice';
         showView('view-game');
@@ -1308,6 +1543,9 @@
         }
     }
 
+    let currentGermanText = '';
+    let germanOnBack = false;   // true = German side is the back (revealed on flip)
+
     function renderCard(card) {
         const deck = decks.find(d => d.id == activeDeckId);
         const dir = deck ? (deck.practice_direction || 'random') : 'random';
@@ -1322,16 +1560,54 @@
 
         // front shows the non-German side -> blank the German word in the example
         const frontHint = learningFront ? hint : clozeHint(hint, card.de);
+        const emo = card.emoji || '';
 
+        document.getElementById('front-emoji').textContent = emo;
+        document.getElementById('back-emoji').textContent = emo;
         document.getElementById('front-text').textContent = frontText;
         document.getElementById('front-hint').textContent = frontHint;
         document.getElementById('back-text').textContent = backText;
         document.getElementById('back-example').textContent = hint ? '"' + hint + '"' : '';
+
+        currentGermanText = card.de || '';
+        germanOnBack = !learningFront;
+        if (learningFront) speakGerman(currentGermanText);   // German side is already showing
     }
 
     function flipCard() {
-        document.getElementById('card').classList.toggle('flipped');
+        const el = document.getElementById('card');
+        el.classList.toggle('flipped');
+        const showingBack = el.classList.contains('flipped');
+        if (showingBack === germanOnBack) speakGerman(currentGermanText);
     }
+
+    // ---- pronunciation (device text-to-speech) ----
+    let ttsOn = (() => { try { return localStorage.getItem('duocards_tts') !== 'off'; } catch (e) { return true; } })();
+
+    function warmTTS() {
+        if (!('speechSynthesis' in window)) return;
+        try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; window.speechSynthesis.speak(u); } catch (e) {}
+    }
+    function speakGerman(text) {
+        if (!ttsOn || !text || !('speechSynthesis' in window)) return;
+        try {
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'de-DE';
+            u.rate = 0.95;
+            const v = (window.speechSynthesis.getVoices() || []).find(x => /^de([-_]|$)/i.test(x.lang));
+            if (v) u.voice = v;
+            window.speechSynthesis.speak(u);
+        } catch (e) {}
+    }
+    function toggleTts() {
+        ttsOn = !ttsOn;
+        try { localStorage.setItem('duocards_tts', ttsOn ? 'on' : 'off'); } catch (e) {}
+        const s = document.getElementById('tts-state');
+        if (s) s.textContent = ttsOn ? 'on' : 'off';
+        if (!ttsOn && 'speechSynthesis' in window) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+    }
+    if ('speechSynthesis' in window) { try { window.speechSynthesis.onvoiceschanged = () => {}; } catch (e) {} }
 
     // Native click handler on the card (works reliably on iOS, unlike a
     // pointerup-based tap). Swipes set suppressNextClick so the trailing click
@@ -1661,6 +1937,8 @@
         const nm = document.getElementById('menu-username');
         if (av) av.textContent = (currentUser.username || '?').charAt(0).toUpperCase();
         if (nm) nm.textContent = currentUser.username || '';
+        const ts = document.getElementById('tts-state');
+        if (ts) ts.textContent = ttsOn ? 'on' : 'off';
     }
 
     function toggleProfileMenu(e) {
