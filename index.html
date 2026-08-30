@@ -1140,6 +1140,16 @@
         }
     }
 
+    let deferredNotified = false;
+    function notifyDeferredOnce() {
+        if (deferredNotified) return;
+        deferredNotified = true;
+        showToast("Saved on this device — will sync when online");
+    }
+
+    // The card's SRS state (PATCH cards) is the write that matters. The review_log
+    // POST is analytics for the streak/history charts — if it fails, learning
+    // progress is NOT lost, so it must never alarm the user.
     async function persistReview(card, correct, patch, wasNew) {
         const reviewRow = {
             user_id: currentUser.id,
@@ -1150,18 +1160,26 @@
             interval_after: patch.interval_days,
             reviewed_at: new Date().toISOString()
         };
+
         try {
-            const r1 = await fetch(`${API_URL}/cards?id=eq.${card.id}`, { method: "PATCH", headers, body: JSON.stringify(patch) });
-            if (!r1.ok) throw new Error("patch " + r1.status);
-            const r2 = await fetch(`${API_URL}/review_log`, { method: "POST", headers, body: JSON.stringify(reviewRow) });
-            if (!r2.ok) throw new Error("log " + r2.status);
+            const r = await fetch(`${API_URL}/cards?id=eq.${card.id}`, { method: "PATCH", headers, body: JSON.stringify(patch) });
+            if (!r.ok) throw new Error("cards " + r.status + " " + (await r.text().catch(() => '')));
         } catch (e) {
-            queueOfflineReview({ cardId: card.id, patch, reviewRow });
-            showToast("Offline — progress will sync later", true);
+            console.warn('[DuoCards] card save deferred:', (e && e.message) || e);
+            queuePending({ kind: 'card', cardId: card.id, patch });
+            notifyDeferredOnce();
+        }
+
+        try {
+            const r = await fetch(`${API_URL}/review_log`, { method: "POST", headers, body: JSON.stringify(reviewRow) });
+            if (!r.ok) throw new Error("review_log " + r.status + " " + (await r.text().catch(() => '')));
+        } catch (e) {
+            console.warn('[DuoCards] stats log deferred (progress is safe):', (e && e.message) || e);
+            queuePending({ kind: 'log', reviewRow });
         }
     }
 
-    function queueOfflineReview(item) {
+    function queuePending(item) {
         let q = [];
         try { q = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch (e) {}
         q.push(item);
@@ -1174,18 +1192,26 @@
         if (!q.length) return;
 
         const remain = [];
+        let syncedCard = false;
         for (const item of q) {
             try {
-                const a = await fetch(`${API_URL}/cards?id=eq.${item.cardId}`, { method: "PATCH", headers, body: JSON.stringify(item.patch) });
-                const b = await fetch(`${API_URL}/review_log`, { method: "POST", headers, body: JSON.stringify(item.reviewRow) });
-                if (!a.ok || !b.ok) throw new Error("retry failed");
+                if (item.kind === 'card' || (!item.kind && item.patch)) {
+                    const r = await fetch(`${API_URL}/cards?id=eq.${item.cardId}`, { method: "PATCH", headers, body: JSON.stringify(item.patch) });
+                    if (!r.ok) throw 0;
+                    syncedCard = true;
+                }
+                if (item.kind === 'log' || (!item.kind && item.reviewRow)) {
+                    const r = await fetch(`${API_URL}/review_log`, { method: "POST", headers, body: JSON.stringify(item.reviewRow) });
+                    if (!r.ok) throw 0;
+                }
             } catch (e) {
                 remain.push(item);
             }
         }
         localStorage.setItem(PENDING_KEY, JSON.stringify(remain));
         if (q.length && !remain.length) {
-            showToast("Synced offline progress");
+            deferredNotified = false;
+            if (syncedCard) showToast("Synced");
             if (currentUser && !document.getElementById('view-home').classList.contains('hidden')) fetchStats();
         }
     }
