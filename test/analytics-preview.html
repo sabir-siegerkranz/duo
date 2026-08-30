@@ -82,7 +82,7 @@
   <div class="summary" id="summary"></div>
   <div class="note" id="note"></div>
   <div id="view"></div>
-  <div class="legend">Less
+  <div class="legend" id="legend">Less
     <i class="lv0"></i><i class="lv1"></i><i class="lv2"></i><i class="lv3"></i><i class="lv4"></i>
     More</div>
 </div>
@@ -90,31 +90,32 @@
 <script>
   const WD_SUN = ['Su','Mo','Tu','We','Th','Fr','Sa'];
   const WD_MON = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+  const WD_FULL = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MON_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const key = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 
-  // ---- fake data: ~110 days of reviews with a daily rhythm ----
-  const byDay = {};          // 'yyyy-mm-dd' -> count
-  const byHour = new Array(24).fill(0);
+  // ---- fake data: ~140 days of reviews, hour-resolved, with a daily rhythm ----
+  const byDayHour = {};   // 'yyyy-mm-dd' -> [24]
+  const byDay = {};        // 'yyyy-mm-dd' -> total
   (function seed(){
     const today = new Date(); today.setHours(0,0,0,0);
-    for (let i = 0; i < 110; i++) {
+    for (let i = 0; i < 140; i++) {
       const d = new Date(today); d.setDate(d.getDate() - i);
       const wd = d.getDay();
-      // skip ~30% of days, weekends a bit lighter
-      if (Math.random() < (wd===0||wd===6 ? 0.45 : 0.22)) continue;
+      if (Math.random() < (wd===0||wd===6 ? 0.45 : 0.22)) continue;   // some idle days
       const n = 8 + Math.floor(Math.random() * (wd===0||wd===6 ? 30 : 55));
-      byDay[key(d)] = n;
+      const hrs = new Array(24).fill(0);
       for (let r = 0; r < n; r++) {
-        // rhythm: morning (7-9), lunch (12-13), evening (19-23)
-        const bucket = Math.random();
-        let h;
-        if (bucket < 0.3) h = 7 + Math.floor(Math.random()*3);
-        else if (bucket < 0.45) h = 12 + Math.floor(Math.random()*2);
-        else if (bucket < 0.9) h = 19 + Math.floor(Math.random()*5);
+        const b = Math.random(); let h;
+        if (b < 0.30) h = 7 + Math.floor(Math.random()*3);      // morning
+        else if (b < 0.45) h = 12 + Math.floor(Math.random()*2); // lunch
+        else if (b < 0.90) h = 19 + Math.floor(Math.random()*5); // evening
         else h = Math.floor(Math.random()*24);
-        byHour[h % 24]++;
+        hrs[h % 24]++;
       }
+      byDayHour[key(d)] = hrs;
+      byDay[key(d)] = n;
     }
   })();
 
@@ -126,7 +127,7 @@
 
   const $ = id => document.getElementById(id);
   let view = 'day';
-  let monthOffset = 0;
+  let dayOffset = 0, weekOffset = 0, monthOffset = 0;
 
   function setSummary(items) {
     $('summary').innerHTML = '';
@@ -137,16 +138,47 @@
     });
   }
 
+  function step(kind, dir) {
+    if (kind === 'day') dayOffset = Math.min(0, dayOffset + dir);
+    else if (kind === 'week') weekOffset = Math.min(0, weekOffset + dir);
+    else monthOffset = Math.min(0, monthOffset + dir);
+    render();
+  }
+  function navBar(label, kind) {
+    const atNow = (kind === 'day' ? dayOffset : kind === 'week' ? weekOffset : monthOffset) >= 0;
+    const nav = document.createElement('div'); nav.className = 'mnav';
+    const prev = document.createElement('button'); prev.textContent = '‹';
+    prev.onclick = () => step(kind, -1);
+    const strong = document.createElement('strong'); strong.textContent = label;
+    const next = document.createElement('button'); next.textContent = '›';
+    next.disabled = atNow; next.style.opacity = atNow ? .35 : 1;
+    if (!atNow) next.onclick = () => step(kind, 1);
+    nav.appendChild(prev); nav.appendChild(strong); nav.appendChild(next);
+    return nav;
+  }
+
   function renderDay() {
-    monthOffset = 0;
-    const total = byHour.reduce((a,b)=>a+b,0);
-    const max = Math.max(1, ...byHour);
-    const peak = byHour.indexOf(max);
-    setSummary([['Reviews (110d)', total], ['Peak hour', String(peak).padStart(2,'0')+':00'], ['Active hours', byHour.filter(x=>x>0).length]]);
-    $('note').textContent = 'When you study — reviews per hour of day, last 110 days';
+    const today = new Date(); today.setHours(0,0,0,0);
+    const d = new Date(today); d.setDate(d.getDate() + dayOffset);
+    const hrs = byDayHour[key(d)] || new Array(24).fill(0);
+    const total = hrs.reduce((a,b)=>a+b,0);
+    const max = Math.max(1, ...hrs);
+    const peak = total ? hrs.indexOf(max) : -1;
+
+    setSummary([
+      ['Reviews', total],
+      ['Peak hour', peak >= 0 ? String(peak).padStart(2,'0')+':00' : '—'],
+      ['Active hours', hrs.filter(x=>x>0).length]
+    ]);
+    const lbl = WD_FULL[d.getDay()] + ', ' + d.getDate() + ' ' + MON_SHORT[d.getMonth()] +
+                (dayOffset === 0 ? ' · Today' : dayOffset === -1 ? ' · Yesterday' : '');
+    $('note').textContent = total ? 'Reviews by hour of day' : 'No reviews on this day';
+
+    const v = $('view'); v.innerHTML = '';
+    v.appendChild(navBar(lbl, 'day'));
 
     const hist = document.createElement('div'); hist.className = 'hist';
-    byHour.forEach((c, h) => {
+    hrs.forEach((c, h) => {
       const col = document.createElement('div');
       col.className = 'hcol' + (h === peak ? ' peak' : '');
       col.title = String(h).padStart(2,'0')+':00 — '+c+' reviews';
@@ -158,39 +190,46 @@
     });
     const axis = document.createElement('div'); axis.className = 'haxis';
     for (let h = 0; h < 24; h++) { const s = document.createElement('span'); s.textContent = h % 3 === 0 ? h : ''; axis.appendChild(s); }
-
-    const v = $('view'); v.innerHTML = ''; v.appendChild(hist); v.appendChild(axis);
+    v.appendChild(hist); v.appendChild(axis);
   }
 
   function renderWeek() {
-    monthOffset = 0;
     const today = new Date(); today.setHours(0,0,0,0);
-    const start = new Date(today); start.setDate(start.getDate() - start.getDay()); // Sunday
+    const start = new Date(today);
+    start.setDate(start.getDate() - start.getDay() + weekOffset * 7); // Sunday of target week
+    const end = new Date(start); end.setDate(end.getDate() + 6);
+
     const counts = [];
-    for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(d.getDate()+i); counts.push(byDay[key(d)] || 0); }
+    for (let i = 0; i < 7; i++) { const dd = new Date(start); dd.setDate(dd.getDate()+i); counts.push(byDay[key(dd)] || 0); }
     const wkTotal = counts.reduce((a,b)=>a+b,0);
     const max = Math.max(1, ...counts);
-    setSummary([['This week', wkTotal], ['Best day', Math.max(...counts)], ['Days active', counts.filter(c=>c>0).length + '/7']]);
-    $('note').textContent = 'Current week — Sunday to Saturday';
+
+    setSummary([['Week total', wkTotal], ['Best day', Math.max(...counts)], ['Days active', counts.filter(c=>c>0).length + '/7']]);
+    $('note').textContent = 'Sunday to Saturday';
+
+    const range = start.getDate()+' '+MON_SHORT[start.getMonth()]+' – '+end.getDate()+' '+MON_SHORT[end.getMonth()] +
+                  (weekOffset === 0 ? ' · This week' : '');
+    const v = $('view'); v.innerHTML = '';
+    v.appendChild(navBar(range, 'week'));
 
     const week = document.createElement('div'); week.className = 'week';
     for (let i = 0; i < 7; i++) {
-      const d = new Date(start); d.setDate(d.getDate()+i);
+      const dd = new Date(start); dd.setDate(dd.getDate()+i);
       const c = counts[i];
-      const isToday = key(d) === key(today);
-      const isFuture = d.getTime() > today.getTime();
+      const isToday = key(dd) === key(today);
+      const isFuture = dd.getTime() > today.getTime();
       const cell = document.createElement('div');
       cell.className = 'wcell' + (isToday ? ' today' : '') + (isFuture ? ' future' : '');
       const sq = document.createElement('div');
       sq.className = 'wsq lv' + (isFuture ? 0 : level(c, max));
       sq.textContent = isFuture ? '' : (c || '');
-      sq.title = key(d) + ' — ' + c + ' reviews';
+      sq.title = key(dd) + ' — ' + c + ' reviews';
       const lab = document.createElement('div'); lab.className = 'wlabel';
-      lab.innerHTML = '<strong>' + WD_SUN[d.getDay()] + '</strong>' + d.getDate();
+      lab.innerHTML = '<strong>' + WD_SUN[dd.getDay()] + '</strong>' + dd.getDate();
       cell.appendChild(sq); cell.appendChild(lab);
       week.appendChild(cell);
     }
-    $('view').innerHTML = ''; $('view').appendChild(week);
+    v.appendChild(week);
   }
 
   function renderMonth() {
@@ -207,42 +246,43 @@
       dayCounts[dd] = c; monthTotal += c; if (c) activeDays++; bestDay = Math.max(bestDay, c);
     }
     const max = Math.max(1, bestDay);
-    setSummary([[MONTHS[m] + ' total', monthTotal], ['Best day', bestDay], ['Days active', activeDays + '/' + daysInMonth]]);
-    $('note').textContent = 'Tap ‹ › to change month';
+    setSummary([['Month total', monthTotal], ['Best day', bestDay], ['Days active', activeDays + '/' + daysInMonth]]);
+    $('note').textContent = 'Mon–Sun calendar';
 
-    const nav = document.createElement('div'); nav.className = 'mnav';
-    nav.innerHTML = '<button data-d="-1">‹</button><strong>' + MONTHS[m] + ' ' + y + '</strong><button data-d="1">›</button>';
+    const v = $('view'); v.innerHTML = '';
+    v.appendChild(navBar(MONTHS[m] + ' ' + y, 'month'));
 
     const head = document.createElement('div'); head.className = 'cal-head';
     WD_MON.forEach(w => { const d = document.createElement('div'); d.textContent = w; head.appendChild(d); });
+    v.appendChild(head);
 
     const grid = document.createElement('div'); grid.className = 'cal-grid';
     for (let i = 0; i < firstWd; i++) { const b = document.createElement('div'); b.className = 'cal-cell blank'; grid.appendChild(b); }
     for (let dd = 1; dd <= daysInMonth; dd++) {
       const c = dayCounts[dd];
-      const cell = document.createElement('div');
       const dObj = new Date(y, m, dd);
       const isToday = key(dObj) === key(today);
+      const cell = document.createElement('div');
       cell.className = 'cal-cell lv' + level(c, max) + (isToday ? ' today' : '');
       cell.title = key(dObj) + ' — ' + c + ' reviews';
       cell.innerHTML = '<span class="cd">' + dd + '</span>';
       grid.appendChild(cell);
     }
-
-    const v = $('view'); v.innerHTML = '';
-    v.appendChild(nav); v.appendChild(head); v.appendChild(grid);
-    nav.querySelectorAll('button').forEach(b => b.onclick = () => { monthOffset += parseInt(b.dataset.d, 10); renderMonth(); });
+    v.appendChild(grid);
   }
 
   function render() {
     document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('active', b.dataset.v === view));
+    $('legend').style.display = view === 'day' ? 'none' : 'flex';
     if (view === 'day') renderDay();
     else if (view === 'week') renderWeek();
     else renderMonth();
   }
   $('seg').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
-    view = b.dataset.v; render();
+    view = b.dataset.v;
+    dayOffset = 0; weekOffset = 0; monthOffset = 0;
+    render();
   });
   render();
 </script>
