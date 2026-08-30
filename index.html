@@ -89,8 +89,8 @@
 
         .flashcard-container {
             perspective: 1000px; height: 250px; margin: 10px 0;
-            touch-action: pan-y; transition: transform 0.18s ease, box-shadow 0.1s ease;
-            border-radius: 16px;
+            touch-action: none; transition: transform 0.18s ease, box-shadow 0.1s ease;
+            border-radius: 16px; user-select: none;
         }
         .flashcard-container.swiping { transition: none; }
         .flashcard-container.cue-correct { box-shadow: 0 0 0 3px var(--success); }
@@ -113,7 +113,7 @@
         .card-back { transform: rotateY(180deg); background-color: #f8fafc; }
         .card-word { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
         .card-example { font-size: 14px; color: #64748b; font-style: italic; }
-        .card-hint { font-size: 13px; color: #94a3b8; font-style: italic; margin-top: 10px; max-width: 90%; }
+        .card-hint { font-size: 16px; color: var(--text); font-weight: 400; margin-top: 12px; max-width: 90%; }
 
         .controls { display: flex; gap: 10px; }
         .controls button { flex: 1; padding: 14px; font-size: 16px; border-radius: 12px; }
@@ -149,13 +149,30 @@
         }
         .deck-item:active { transform: scale(0.98); }
         .deck-item.selected { border-color: var(--primary); background-color: #e6f7ff; }
-        .deck-item-main { flex: 1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .deck-item-main { flex: 1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+        .deck-item-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
         .deck-gear { width: auto; background: none; border: none; font-size: 18px; padding: 4px 8px; color: #94a3b8; }
+        .deck-count-badge {
+            font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+            background: var(--primary); color: #fff; min-width: 22px; text-align: center;
+        }
+        #show-all-decks { width: auto; margin-top: 8px; padding: 8px 12px; font-size: 13px; background: #e2e8f0; color: #475569; }
 
         .deck-badge {
             font-size: 11px; padding: 2px 8px; border-radius: 10px;
             background-color: #e2e8f0; color: #475569; font-weight: 600;
         }
+
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+            display: flex; align-items: flex-end; justify-content: center; z-index: 200;
+        }
+        .modal-card {
+            background: #fff; width: 100%; max-width: 440px;
+            border-radius: 16px 16px 0 0; padding: 16px; max-height: 80vh; overflow-y: auto;
+        }
+        .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .modal-x { width: auto; background: none; border: none; font-size: 18px; color: #94a3b8; padding: 4px 8px; }
 
         .card-row { display: flex; align-items: center; gap: 8px; padding: 10px 4px; border-bottom: 1px solid #eef2f7; }
         .card-row-text { flex: 1; font-size: 14px; word-break: break-word; }
@@ -171,12 +188,32 @@
         }
         .toast.show { opacity: 1; }
         .toast.error { background: var(--danger); }
+
+        /* Touch devices (phones/tablets): swipe only, bigger card. */
+        @media (hover: none) and (pointer: coarse) {
+            .controls { display: none; }
+            .flashcard-container { height: clamp(340px, 58vh, 560px); }
+            .card-word { font-size: 32px; }
+            .card-hint { font-size: 18px; margin-top: 16px; }
+            .swipe-hint { margin-top: 14px; font-size: 13px; }
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div id="toast" class="toast">Card Saved!</div>
+
+    <!-- DECK PICKER MODAL -->
+    <div id="deck-picker" class="modal-overlay hidden" onclick="if(event.target===this)closeDeckPicker()">
+        <div class="modal-card">
+            <div class="modal-head">
+                <strong>Pick a deck</strong>
+                <button class="modal-x" onclick="closeDeckPicker()">✕</button>
+            </div>
+            <div id="deck-picker-list"></div>
+        </div>
+    </div>
 
     <!-- LOGIN VIEW -->
     <div id="view-login" class="card-box" style="text-align: center;">
@@ -215,15 +252,13 @@
         <div class="card-box">
             <h3 style="margin-top:0;">Your Decks</h3>
             <div id="deck-list-container"></div>
+            <button id="show-all-decks" class="hidden" onclick="openDeckPicker()">Show all decks</button>
             <button style="margin-top: 10px; background-color: #3b82f6;" onclick="createNewDeck()">+ Create New Deck</button>
         </div>
 
         <div class="card-box">
             <h3 style="margin-top:0;">Deck Overview</h3>
-            <div class="form-group">
-                <label>Select Deck:</label>
-                <select id="homeDeckSelector" onchange="selectDeckFromDropdown()"></select>
-            </div>
+            <div id="overview-deck-name" style="font-weight:700; font-size:16px; margin-bottom:6px;"></div>
             <div class="stats-grid">
                 <div class="stat-box to-learn">
                     <div style="font-size:11px;">📚 To Learn</div>
@@ -254,10 +289,9 @@
         <div class="card-box">
             <div id="game-container">
                 <div class="flashcard-container" id="flashcard-container">
-                    <div class="flashcard" id="card" onclick="flipCard()">
+                    <div class="flashcard" id="card" onclick="onCardTap()">
                         <div class="card-face card-front">
                             <div class="card-word" id="front-text">Loading...</div>
-                            <div class="card-example" id="front-subtext">Tap to flip</div>
                             <div class="card-hint" id="front-hint"></div>
                         </div>
                         <div class="card-face card-back">
@@ -271,7 +305,7 @@
                     <button class="btn-again" id="btn-wrong" onclick="handleOutcome(false)">Wrong</button>
                     <button class="btn-good" id="btn-correct" onclick="handleOutcome(true)">Correct</button>
                 </div>
-                <div style="text-align:center; font-size:11px; color:#94a3b8; margin-top:8px;">Swipe left = Wrong · right = Correct · tap = flip</div>
+                <div class="swipe-hint" style="text-align:center; font-size:11px; color:#94a3b8; margin-top:8px;">Swipe left = Wrong · right = Correct · tap = flip</div>
             </div>
             <div id="empty-state" class="hidden" style="text-align: center; padding: 40px 0;">
                 🎉 All cards in this deck completed!
@@ -338,8 +372,8 @@
             </select>
         </div>
         <div class="form-group">
-            <label>New cards per day</label>
-            <input type="number" id="ds-limit" min="0" max="200">
+            <label>New cards per day (0 = no limit)</label>
+            <input type="number" id="ds-limit" min="0" max="500">
         </div>
         <button onclick="saveDeckSettings()">Save</button>
         <button style="background: var(--danger); margin-top: 8px;" onclick="deleteDeckFromSettings()">Delete Deck</button>
@@ -372,6 +406,7 @@
     let currentUser = null;
     let decks = [];
     let activeDeckId = null;
+    let deckCounts = {};         // { deckId: { pending, total } } — for ranking / badges
     let allCards = [];           // cards for the active deck (home stats + management)
     let sessionQueue = [];       // cards queued for the current practice run
     let currentCard = null;      // the card on screen (object ref, not an index)
@@ -549,58 +584,115 @@
         }
 
         if (!activeDeckId || !decks.some(d => d.id == activeDeckId)) activeDeckId = decks[0].id;
+        await fetchDeckCounts();
         renderHomeDecks();
         fetchStats();
     }
 
+    // Per-deck count of "pending" cards (new or due) — one query, grouped client-side.
+    async function fetchDeckCounts() {
+        try {
+            const res = await apiFetch(`${API_URL}/cards?user_id=eq.${currentUser.id}&select=deck_id,reps,lapses,due_at`, { headers });
+            const rows = await res.json();
+            const now = Date.now();
+            deckCounts = {};
+            rows.forEach(c => {
+                const d = c.deck_id;
+                if (!deckCounts[d]) deckCounts[d] = { pending: 0, total: 0 };
+                deckCounts[d].total++;
+                const isNew = (Number(c.reps) || 0) === 0 && (Number(c.lapses) || 0) === 0;
+                const due = !c.due_at || new Date(c.due_at).getTime() <= now;
+                if (isNew || due) deckCounts[d].pending++;
+            });
+        } catch (e) {
+            deckCounts = {};
+        }
+    }
+
+    function deckPending(id) {
+        return (deckCounts[id] && deckCounts[id].pending) || 0;
+    }
+
+    function buildDeckRow(d, inModal) {
+        const item = document.createElement('div');
+        item.className = 'deck-item' + (d.id == activeDeckId ? ' selected' : '');
+
+        const left = document.createElement('div');
+        left.className = 'deck-item-main';
+        const name = document.createElement('strong');
+        name.textContent = d.name;
+        const badge = document.createElement('span');
+        badge.className = 'deck-badge';
+        badge.textContent = d.type === 'free' ? 'Free Deck' : 'Standard';
+        left.appendChild(name);
+        left.appendChild(document.createTextNode(' '));
+        left.appendChild(badge);
+
+        const right = document.createElement('div');
+        right.className = 'deck-item-right';
+        const pending = deckPending(d.id);
+        if (pending > 0) {
+            const cb = document.createElement('span');
+            cb.className = 'deck-count-badge';
+            cb.textContent = pending;
+            cb.title = pending + ' cards to review';
+            right.appendChild(cb);
+        }
+        const gear = document.createElement('button');
+        gear.className = 'deck-gear';
+        gear.textContent = '⚙';
+        gear.onclick = (e) => { e.stopPropagation(); if (inModal) closeDeckPicker(); openDeckSettings(d.id); };
+        right.appendChild(gear);
+
+        item.appendChild(left);
+        item.appendChild(right);
+        item.onclick = () => { selectDeck(d.id); if (inModal) closeDeckPicker(); };
+        return item;
+    }
+
+    // Order: active deck first, then most-pending. Home shows the top 2.
+    function orderedDecks() {
+        return decks.slice().sort((a, b) => {
+            if (a.id == activeDeckId) return -1;
+            if (b.id == activeDeckId) return 1;
+            const diff = deckPending(b.id) - deckPending(a.id);
+            return diff !== 0 ? diff : (a.name || '').localeCompare(b.name || '');
+        });
+    }
+
     function renderHomeDecks() {
         const listEl = document.getElementById('deck-list-container');
-        const selectorEl = document.getElementById('homeDeckSelector');
         listEl.textContent = '';
-        selectorEl.textContent = '';
 
-        decks.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = d.id;
-            opt.textContent = d.name + (d.type === 'free' ? ' (Free)' : '');
-            selectorEl.appendChild(opt);
+        const visible = orderedDecks().slice(0, 2);
+        visible.forEach(d => listEl.appendChild(buildDeckRow(d, false)));
 
-            const item = document.createElement('div');
-            item.className = 'deck-item' + (d.id == activeDeckId ? ' selected' : '');
+        const showAll = document.getElementById('show-all-decks');
+        if (decks.length > visible.length) {
+            showAll.classList.remove('hidden');
+            showAll.textContent = `Show all decks (${decks.length})`;
+        } else {
+            showAll.classList.add('hidden');
+        }
 
-            const left = document.createElement('div');
-            left.className = 'deck-item-main';
-            const name = document.createElement('strong');
-            name.textContent = d.name;
-            const badge = document.createElement('span');
-            badge.className = 'deck-badge';
-            badge.textContent = d.type === 'free' ? 'Free Deck' : 'Standard';
-            left.appendChild(name);
-            left.appendChild(document.createTextNode(' '));
-            left.appendChild(badge);
-            left.onclick = () => selectDeck(d.id);
+        const active = decks.find(d => d.id == activeDeckId);
+        document.getElementById('overview-deck-name').textContent = active ? active.name : '';
 
-            const gear = document.createElement('button');
-            gear.className = 'deck-gear';
-            gear.textContent = '⚙';
-            gear.onclick = (e) => { e.stopPropagation(); openDeckSettings(d.id); };
-
-            item.appendChild(left);
-            item.appendChild(gear);
-            listEl.appendChild(item);
-        });
-
-        selectorEl.value = activeDeckId;
         fetchActiveDeckCards();
+    }
+
+    function openDeckPicker() {
+        const wrap = document.getElementById('deck-picker-list');
+        wrap.textContent = '';
+        orderedDecks().forEach(d => wrap.appendChild(buildDeckRow(d, true)));
+        document.getElementById('deck-picker').classList.remove('hidden');
+    }
+    function closeDeckPicker() {
+        document.getElementById('deck-picker').classList.add('hidden');
     }
 
     function selectDeck(deckId) {
         activeDeckId = deckId;
-        renderHomeDecks();
-    }
-
-    function selectDeckFromDropdown() {
-        activeDeckId = document.getElementById('homeDeckSelector').value;
         renderHomeDecks();
     }
 
@@ -646,7 +738,7 @@
         settingsDeckId = deckId;
         document.getElementById('ds-name').value = d.name || '';
         document.getElementById('ds-direction').value = d.practice_direction || 'random';
-        document.getElementById('ds-limit').value = (d.daily_new_limit != null ? d.daily_new_limit : 10);
+        document.getElementById('ds-limit').value = (d.daily_new_limit != null ? d.daily_new_limit : 0);
         showView('view-deck-settings');
     }
 
@@ -776,7 +868,7 @@
     function exitAddToHome() {
         editingCardId = null;
         showView('view-home');
-        fetchActiveDeckCards();
+        fetchDeckCounts().then(renderHomeDecks);
     }
 
     function handleInputChange() {
@@ -898,6 +990,7 @@
     function exitCardsToHome() {
         showView('view-home');
         renderHomeStats();
+        fetchDeckCounts().then(renderHomeDecks);
     }
 
     function renderCardList() {
@@ -1000,20 +1093,22 @@
     }
 
     async function buildSessionQueue() {
-        const now = Date.now();
         const deck = decks.find(d => d.id == activeDeckId);
-        const limit = deck && deck.daily_new_limit != null ? deck.daily_new_limit : 10;
-        const doneNew = await newDoneToday(activeDeckId);
-        const newAllowance = Math.max(0, limit - doneNew);
+        const limit = deck && deck.daily_new_limit != null ? deck.daily_new_limit : 0;
+        const unlimited = !limit || limit <= 0;   // 0 / null = no daily new-card cap
 
         const due = allCards
             .filter(c => (Number(c.reps) > 0 || Number(c.lapses) > 0) && isDue(c))
             .sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
 
-        const fresh = allCards
+        let fresh = allCards
             .filter(c => Number(c.reps) === 0 && Number(c.lapses) === 0)
-            .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
-            .slice(0, newAllowance);
+            .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+
+        if (!unlimited) {
+            const doneNew = await newDoneToday(activeDeckId);
+            fresh = fresh.slice(0, Math.max(0, limit - doneNew));
+        }
 
         // interleave: roughly every 4th card is a new one
         const queue = [];
@@ -1045,8 +1140,9 @@
 
     function exitGameToHome() {
         showView('view-home');
-        fetchActiveDeckCards();
+        renderHomeStats();       // instant: in-memory cards were mutated by schedule() during practice
         fetchStats();
+        fetchDeckCounts().then(renderHomeDecks);  // refresh deck badges + active-deck stats from server
     }
 
     function emptyStateMessage() {
@@ -1096,7 +1192,6 @@
         const backText = learningFront ? card.en : card.de;
 
         document.getElementById('front-text').textContent = frontText;
-        document.getElementById('front-subtext').textContent = "Tap to flip";
         document.getElementById('front-hint').textContent = hint;
         document.getElementById('back-text').textContent = backText;
         document.getElementById('back-example').textContent = hint ? '"' + hint + '"' : '';
@@ -1104,6 +1199,16 @@
 
     function flipCard() {
         document.getElementById('card').classList.toggle('flipped');
+    }
+
+    // Native click handler on the card (works reliably on iOS, unlike a
+    // pointerup-based tap). Swipes set suppressNextClick so the trailing click
+    // after a drag doesn't also flip.
+    let suppressNextClick = false;
+    function onCardTap() {
+        if (suppressNextClick) { suppressNextClick = false; return; }
+        if (isTransitioning || !currentCard) return;
+        flipCard();
     }
 
     // Single entry point for both the buttons and the swipe. The isTransitioning
@@ -1229,44 +1334,73 @@
     function initSwipe() {
         const el = document.getElementById('flashcard-container');
         if (!el) return;
-        let startX = 0, startY = 0, startT = 0, dragging = false, dx = 0;
+
+        // one gesture at a time; mode is decided once and then stuck:
+        //   pending -> swipe (horizontal) | scroll (vertical, hands off) | idle
+        let mode = 'idle';
+        let sx = 0, sy = 0, lastX = 0, lastT = 0, dx = 0, vx = 0;
+
+        const INTENT_PX = 6;      // travel before we decide the gesture's direction
+        const COMMIT_FRAC = 0.20; // fraction of card width that counts as a grade
+        const COMMIT_PX = 60;     // absolute distance fallback
+        const FLICK_V = 0.45;     // px/ms release speed that counts as a flick
 
         el.addEventListener('pointerdown', (e) => {
             if (isTransitioning || !currentCard) return;
-            dragging = true;
-            startX = e.clientX; startY = e.clientY; startT = Date.now(); dx = 0;
-            el.classList.add('swiping');
-            try { el.setPointerCapture(e.pointerId); } catch (err) {}
+            mode = 'pending';
+            sx = lastX = e.clientX; sy = e.clientY; lastT = e.timeStamp;
+            dx = 0; vx = 0;
         });
 
         el.addEventListener('pointermove', (e) => {
-            if (!dragging) return;
-            dx = e.clientX - startX;
-            const dy = e.clientY - startY;
-            if (Math.abs(dy) > Math.abs(dx) && Math.abs(dx) < 12) return;  // let vertical scroll win
-            el.style.transform = `translateX(${dx}px) rotate(${dx / 22}deg)`;
-            el.classList.toggle('cue-correct', dx > 30);
-            el.classList.toggle('cue-wrong', dx < -30);
+            if (mode === 'idle' || mode === 'scroll') return;
+            dx = e.clientX - sx;
+            const dy = e.clientY - sy;
+
+            if (mode === 'pending') {
+                if (Math.abs(dx) < INTENT_PX && Math.abs(dy) < INTENT_PX) return;
+                if (Math.abs(dx) >= Math.abs(dy)) {
+                    mode = 'swipe';
+                    el.classList.add('swiping');
+                    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+                } else {
+                    mode = 'scroll';   // vertical: stay out of the way for the rest of this gesture
+                    return;
+                }
+            }
+
+            const dt = e.timeStamp - lastT;
+            if (dt > 0) vx = (e.clientX - lastX) / dt;
+            lastX = e.clientX; lastT = e.timeStamp;
+
+            el.style.transform = `translateX(${dx}px) rotate(${dx / 18}deg)`;
+            el.classList.toggle('cue-correct', dx > 22);
+            el.classList.toggle('cue-wrong', dx < -22);
         });
 
-        const finish = (e) => {
-            if (!dragging) return;
-            dragging = false;
+        const end = () => {
+            if (mode !== 'swipe') { mode = 'idle'; return; }  // tap/scroll — onCardTap handles the flip
+            mode = 'idle';
             el.classList.remove('swiping');
-            const dt = Date.now() - startT;
+
             const w = el.offsetWidth || 320;
             const moved = Math.abs(dx);
+            const commit = moved > w * COMMIT_FRAC || moved > COMMIT_PX ||
+                           (Math.abs(vx) > FLICK_V && moved > 28);
 
-            if (moved < 8 && dt < 250) { resetCardPos(); flipCard(); return; }
-
-            if (moved > w * 0.35 || (moved > 70 && dt < 250)) {
-                handleOutcome(dx > 0, true);   // animate the card off-screen, then grade
+            if (commit) {
+                suppressNextClick = true;
+                setTimeout(() => { suppressNextClick = false; }, 400);
+                handleOutcome(dx > 0, true);   // fling off-screen, then grade
             } else {
                 resetCardPos();
             }
         };
-        el.addEventListener('pointerup', finish);
-        el.addEventListener('pointercancel', () => { dragging = false; resetCardPos(); });
+        el.addEventListener('pointerup', end);
+        el.addEventListener('pointercancel', () => {
+            if (mode === 'swipe') resetCardPos();
+            mode = 'idle';
+        });
     }
 
     // ------------------------------------------------------------------
