@@ -113,8 +113,12 @@
         .card-back { transform: rotateY(180deg); background-color: #f8fafc; }
         .card-word { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
         .card-example { font-size: 14px; color: #64748b; font-style: italic; }
-        .card-hint { font-size: 16px; color: var(--text); font-weight: 400; margin-top: 12px; max-width: 90%; }
+        .card-hint { font-size: 16px; color: var(--text); font-weight: 400; max-width: 90%; }
         .card-emoji { font-size: 44px; line-height: 1; margin-bottom: 6px; min-height: 4px; }
+        .spk-line { display: flex; align-items: baseline; justify-content: center; gap: 8px; max-width: 92%; margin-top: 10px; }
+        .spk-line:first-of-type { margin-top: 0; }
+        .spk { background: none; border: none; color: var(--primary); font-size: 15px; line-height: 1; padding: 2px 2px; width: auto; flex-shrink: 0; align-self: center; }
+        .spk.hidden { display: none; }
 
         .ex-picker { display: flex; flex-direction: column; gap: 6px; margin: -2px 0 12px; }
         .ex-chip { font-size: 12px; padding: 8px 10px; border-radius: 9px; background: #f1f5f9; color: #475569; border: 1px solid transparent; cursor: pointer; line-height: 1.35; text-align: left; }
@@ -421,13 +425,25 @@
                     <div class="flashcard" id="card" onclick="onCardTap()">
                         <div class="card-face card-front">
                             <div class="card-emoji" id="front-emoji"></div>
-                            <div class="card-word" id="front-text">Loading...</div>
-                            <div class="card-hint" id="front-hint"></div>
+                            <div class="spk-line">
+                                <button class="spk hidden" id="spk-fw" type="button">🔊</button>
+                                <span class="card-word" id="front-text">Loading...</span>
+                            </div>
+                            <div class="spk-line">
+                                <button class="spk hidden" id="spk-fh" type="button">🔊</button>
+                                <span class="card-hint" id="front-hint"></span>
+                            </div>
                         </div>
                         <div class="card-face card-back">
                             <div class="card-emoji" id="back-emoji"></div>
-                            <div class="card-word" id="back-text">...</div>
-                            <div class="card-example" id="back-example">...</div>
+                            <div class="spk-line">
+                                <button class="spk hidden" id="spk-bw" type="button">🔊</button>
+                                <span class="card-word" id="back-text">...</span>
+                            </div>
+                            <div class="spk-line">
+                                <button class="spk hidden" id="spk-be" type="button">🔊</button>
+                                <span class="card-example" id="back-example">...</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -583,6 +599,7 @@
         checkSavedSession();
         flushPending();
         initSwipe();
+        initSpeakers();
     });
     window.addEventListener('online', flushPending);
     if ('serviceWorker' in navigator) {
@@ -1544,7 +1561,17 @@
     }
 
     let currentGermanText = '';
+    let currentExampleText = '';
     let germanOnBack = false;   // true = German side is the back (revealed on flip)
+
+    // wire the four replay speaker buttons once
+    function initSpeakers() {
+        const stop = (fn) => (e) => { e.stopPropagation(); e.preventDefault(); warmTTS(); fn(); };
+        const word = () => speakGerman(currentGermanText);
+        const example = () => speakGerman(currentExampleText);
+        ['spk-fw', 'spk-bw'].forEach(id => { const b = document.getElementById(id); if (b) b.onclick = stop(word); });
+        ['spk-fh', 'spk-be'].forEach(id => { const b = document.getElementById(id); if (b) b.onclick = stop(example); });
+    }
 
     function renderCard(card) {
         const deck = decks.find(d => d.id == activeDeckId);
@@ -1569,7 +1596,14 @@
         document.getElementById('back-text').textContent = backText;
         document.getElementById('back-example').textContent = hint ? '"' + hint + '"' : '';
 
+        // replay speakers: show one next to whichever text is German
+        document.getElementById('spk-fw').classList.toggle('hidden', !learningFront);
+        document.getElementById('spk-fh').classList.toggle('hidden', !(learningFront && hint));   // front hint = full example only when German is on front
+        document.getElementById('spk-bw').classList.toggle('hidden', learningFront);
+        document.getElementById('spk-be').classList.toggle('hidden', !hint);
+
         currentGermanText = card.de || '';
+        currentExampleText = card.hint || card.ex_de || '';
         germanOnBack = !learningFront;
         if (learningFront) speakGerman(currentGermanText);   // German side is already showing
     }
@@ -1588,7 +1622,7 @@
     let ttsOn = (() => { try { return localStorage.getItem('duocards_tts') !== 'off'; } catch (e) { return true; } })();
     let ttsAudio = null;
     const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
-    const cloudTtsUrl = (t) => 'https://api.streamelements.com/kappa/v2/speech?voice=Hans&text=' + encodeURIComponent(t);
+    const cloudTtsUrl = (t) => SUPABASE_URL + '/functions/v1/tts?text=' + encodeURIComponent(t);
 
     function warmTTS() {
         if ('speechSynthesis' in window) { try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; window.speechSynthesis.speak(u); } catch (e) {} }

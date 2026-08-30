@@ -8,7 +8,7 @@
  *   index.html); letting the SW queue them too would risk double-applying.
  */
 
-const VERSION = 'duocards-v3';
+const VERSION = 'duocards-v4';
 const SHELL = [
   './',
   './index.html',
