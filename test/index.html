@@ -171,6 +171,15 @@
         }
         .toast.show { opacity: 1; }
         .toast.error { background: var(--danger); }
+
+        /* Touch devices (phones/tablets): swipe only, bigger card. */
+        @media (hover: none) and (pointer: coarse) {
+            .controls { display: none; }
+            .flashcard-container { height: clamp(340px, 58vh, 560px); }
+            .card-word { font-size: 32px; }
+            .card-hint { font-size: 18px; margin-top: 16px; }
+            .swipe-hint { margin-top: 14px; font-size: 13px; }
+        }
     </style>
 </head>
 <body>
@@ -270,7 +279,7 @@
                     <button class="btn-again" id="btn-wrong" onclick="handleOutcome(false)">Wrong</button>
                     <button class="btn-good" id="btn-correct" onclick="handleOutcome(true)">Correct</button>
                 </div>
-                <div style="text-align:center; font-size:11px; color:#94a3b8; margin-top:8px;">Swipe left = Wrong · right = Correct · tap = flip</div>
+                <div class="swipe-hint" style="text-align:center; font-size:11px; color:#94a3b8; margin-top:8px;">Swipe left = Wrong · right = Correct · tap = flip</div>
             </div>
             <div id="empty-state" class="hidden" style="text-align: center; padding: 40px 0;">
                 🎉 All cards in this deck completed!
