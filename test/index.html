@@ -1784,6 +1784,7 @@
         currentGermanText = card.de || '';
         currentExampleText = card.hint || card.ex_de || '';
         germanOnBack = !learningFront;
+        primeTTS(currentGermanText);   // buffer the word's audio now, ready for the flip
         if (learningFront) speakGerman(currentGermanText);   // German side is already showing
     }
 
@@ -1795,33 +1796,52 @@
     }
 
     // ---- pronunciation ----
-    // Primary: StreamElements' "Hans" (German male, AWS Polly) — same good voice
-    // on every device. Fallback: the device's own de-DE voice, preferring a male
-    // / enhanced one.
+    // Cloud voice (Google TTS via the `tts` function) with the device voice as
+    // fallback. The German word's audio is PREFETCHED the moment a card renders,
+    // so playback on flip is instant.
     let ttsOn = (() => { try { return localStorage.getItem('duocards_tts') !== 'off'; } catch (e) { return true; } })();
     let ttsAudio = null;
+    let ttsSrcText = '';   // the text ttsAudio.src currently holds (buffered)
     const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
     const cloudTtsUrl = (t) => SUPABASE_URL + '/functions/v1/tts?text=' + encodeURIComponent(t);
+    const cleanTts = (t) => (t || '').trim().slice(0, 180);
 
     function warmTTS() {
         if ('speechSynthesis' in window) { try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; window.speechSynthesis.speak(u); } catch (e) {} }
         try {
             if (!ttsAudio) ttsAudio = new Audio();
-            ttsAudio.src = SILENT_WAV;                 // unlock <audio> playback inside this gesture
+            ttsAudio.src = SILENT_WAV; ttsSrcText = '';   // unlock <audio> playback inside this gesture
             const p = ttsAudio.play();
             if (p && p.catch) p.catch(() => {});
         } catch (e) {}
     }
 
+    // Start buffering `text` without playing it (called when a card appears).
+    function primeTTS(text) {
+        if (!ttsOn) return;
+        const clean = cleanTts(text);
+        if (!clean || !ttsAudio || ttsSrcText === clean) return;
+        try {
+            ttsSrcText = clean;
+            ttsAudio.onerror = null;
+            ttsAudio.src = cloudTtsUrl(clean);
+            ttsAudio.load();
+        } catch (e) {}
+    }
+
     function speakGerman(text) {
         if (!ttsOn || !text) return;
-        const clean = text.trim().slice(0, 180);
+        const clean = cleanTts(text);
         if (!clean) return;
         try {
             if (!ttsAudio) ttsAudio = new Audio();
+            if (ttsSrcText !== clean) {              // not primed -> load now
+                ttsSrcText = clean;
+                ttsAudio.src = cloudTtsUrl(clean);
+            }
             ttsAudio.onerror = () => speakDevice(clean);
-            ttsAudio.src = cloudTtsUrl(clean);
-            const p = ttsAudio.play();
+            try { ttsAudio.currentTime = 0; } catch (e) {}
+            const p = ttsAudio.play();              // primed src -> plays instantly
             if (p && p.catch) p.catch(() => speakDevice(clean));
         } catch (e) {
             speakDevice(clean);
