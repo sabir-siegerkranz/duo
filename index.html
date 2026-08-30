@@ -820,7 +820,7 @@
             } else {
                 deInput.value = (data.article ? data.article + ' ' : '') + (data.translation || '');
             }
-            if (!isFree && data.example_de && !exDeInput.value.trim()) exDeInput.value = data.example_de;
+            if (!isFree && data.example_de) exDeInput.value = data.example_de;
             handleInputChange();
         } catch (e) {
             showToast("Auto-translate failed — enter it manually", true);
