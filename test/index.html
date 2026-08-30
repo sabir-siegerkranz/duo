@@ -1581,31 +1581,66 @@
         if (showingBack === germanOnBack) speakGerman(currentGermanText);
     }
 
-    // ---- pronunciation (device text-to-speech) ----
+    // ---- pronunciation ----
+    // Primary: StreamElements' "Hans" (German male, AWS Polly) — same good voice
+    // on every device. Fallback: the device's own de-DE voice, preferring a male
+    // / enhanced one.
     let ttsOn = (() => { try { return localStorage.getItem('duocards_tts') !== 'off'; } catch (e) { return true; } })();
+    let ttsAudio = null;
+    const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+    const cloudTtsUrl = (t) => 'https://api.streamelements.com/kappa/v2/speech?voice=Hans&text=' + encodeURIComponent(t);
 
     function warmTTS() {
-        if (!('speechSynthesis' in window)) return;
-        try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; window.speechSynthesis.speak(u); } catch (e) {}
+        if ('speechSynthesis' in window) { try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; window.speechSynthesis.speak(u); } catch (e) {} }
+        try {
+            if (!ttsAudio) ttsAudio = new Audio();
+            ttsAudio.src = SILENT_WAV;                 // unlock <audio> playback inside this gesture
+            const p = ttsAudio.play();
+            if (p && p.catch) p.catch(() => {});
+        } catch (e) {}
     }
+
     function speakGerman(text) {
-        if (!ttsOn || !text || !('speechSynthesis' in window)) return;
+        if (!ttsOn || !text) return;
+        const clean = text.trim().slice(0, 180);
+        if (!clean) return;
+        try {
+            if (!ttsAudio) ttsAudio = new Audio();
+            ttsAudio.onerror = () => speakDevice(clean);
+            ttsAudio.src = cloudTtsUrl(clean);
+            const p = ttsAudio.play();
+            if (p && p.catch) p.catch(() => speakDevice(clean));
+        } catch (e) {
+            speakDevice(clean);
+        }
+    }
+
+    function speakDevice(text) {
+        if (!('speechSynthesis' in window)) return;
         try {
             window.speechSynthesis.cancel();
             const u = new SpeechSynthesisUtterance(text);
             u.lang = 'de-DE';
-            u.rate = 0.95;
-            const v = (window.speechSynthesis.getVoices() || []).find(x => /^de([-_]|$)/i.test(x.lang));
-            if (v) u.voice = v;
+            u.rate = 0.92;
+            const de = (window.speechSynthesis.getVoices() || []).filter(v => /^de([-_]|$)/i.test(v.lang));
+            const pick =
+                de.find(v => /markus|hans|yannick|viktor|conrad|stefan|(^|\W)male/i.test(v.name)) ||
+                de.find(v => /enhanced|premium|siri/i.test(v.name)) ||
+                de[0];
+            if (pick) u.voice = pick;
             window.speechSynthesis.speak(u);
         } catch (e) {}
     }
+
     function toggleTts() {
         ttsOn = !ttsOn;
         try { localStorage.setItem('duocards_tts', ttsOn ? 'on' : 'off'); } catch (e) {}
         const s = document.getElementById('tts-state');
         if (s) s.textContent = ttsOn ? 'on' : 'off';
-        if (!ttsOn && 'speechSynthesis' in window) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+        if (!ttsOn) {
+            try { if (ttsAudio) ttsAudio.pause(); } catch (e) {}
+            try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
+        }
     }
     if ('speechSynthesis' in window) { try { window.speechSynthesis.onvoiceschanged = () => {}; } catch (e) {} }
 
