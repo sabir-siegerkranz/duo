@@ -1,14 +1,14 @@
 /* DuoCards service worker — app-shell precache + offline review of already-loaded data.
  *
  * Scope notes:
- * - GET requests to Supabase REST are served stale-while-revalidate so a deck you
- *   opened while online stays reviewable offline.
+ * - GET requests to Supabase REST are network-first (fresh when online), with the
+ *   last response cached so a deck you opened stays reviewable offline.
  * - Writes (POST/PATCH/DELETE) are NOT intercepted here. The app has its own
  *   localStorage retry queue for review results (see persistReview/flushPending in
  *   index.html); letting the SW queue them too would risk double-applying.
  */
 
-const VERSION = 'duocards-v2';
+const VERSION = 'duocards-v4';
 const SHELL = [
   './',
   './index.html',
