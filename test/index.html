@@ -89,8 +89,8 @@
 
         .flashcard-container {
             perspective: 1000px; height: 250px; margin: 10px 0;
-            touch-action: pan-y; transition: transform 0.18s ease, box-shadow 0.1s ease;
-            border-radius: 16px;
+            touch-action: none; transition: transform 0.18s ease, box-shadow 0.1s ease;
+            border-radius: 16px; user-select: none;
         }
         .flashcard-container.swiping { transition: none; }
         .flashcard-container.cue-correct { box-shadow: 0 0 0 3px var(--success); }
@@ -1332,55 +1332,72 @@
     function initSwipe() {
         const el = document.getElementById('flashcard-container');
         if (!el) return;
-        let startX = 0, startY = 0, startT = 0, tracking = false, activated = false, dx = 0;
+
+        // one gesture at a time; mode is decided once and then stuck:
+        //   pending -> swipe (horizontal) | scroll (vertical, hands off) | idle
+        let mode = 'idle';
+        let sx = 0, sy = 0, lastX = 0, lastT = 0, dx = 0, vx = 0;
+
+        const INTENT_PX = 6;      // travel before we decide the gesture's direction
+        const COMMIT_FRAC = 0.20; // fraction of card width that counts as a grade
+        const COMMIT_PX = 60;     // absolute distance fallback
+        const FLICK_V = 0.45;     // px/ms release speed that counts as a flick
 
         el.addEventListener('pointerdown', (e) => {
             if (isTransitioning || !currentCard) return;
-            tracking = true;
-            activated = false;   // becomes a real drag only once the finger moves sideways
-            startX = e.clientX; startY = e.clientY; startT = Date.now(); dx = 0;
+            mode = 'pending';
+            sx = lastX = e.clientX; sy = e.clientY; lastT = e.timeStamp;
+            dx = 0; vx = 0;
         });
 
         el.addEventListener('pointermove', (e) => {
-            if (!tracking) return;
-            dx = e.clientX - startX;
-            const dy = e.clientY - startY;
-            if (!activated) {
-                // ignore until the gesture is clearly horizontal; leave taps and
-                // vertical scrolls alone so the native click still fires (iOS).
-                if (Math.abs(dx) < 10 || Math.abs(dx) <= Math.abs(dy)) return;
-                activated = true;
-                el.classList.add('swiping');
-                try { el.setPointerCapture(e.pointerId); } catch (err) {}
+            if (mode === 'idle' || mode === 'scroll') return;
+            dx = e.clientX - sx;
+            const dy = e.clientY - sy;
+
+            if (mode === 'pending') {
+                if (Math.abs(dx) < INTENT_PX && Math.abs(dy) < INTENT_PX) return;
+                if (Math.abs(dx) >= Math.abs(dy)) {
+                    mode = 'swipe';
+                    el.classList.add('swiping');
+                    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+                } else {
+                    mode = 'scroll';   // vertical: stay out of the way for the rest of this gesture
+                    return;
+                }
             }
-            el.style.transform = `translateX(${dx}px) rotate(${dx / 22}deg)`;
-            el.classList.toggle('cue-correct', dx > 30);
-            el.classList.toggle('cue-wrong', dx < -30);
+
+            const dt = e.timeStamp - lastT;
+            if (dt > 0) vx = (e.clientX - lastX) / dt;
+            lastX = e.clientX; lastT = e.timeStamp;
+
+            el.style.transform = `translateX(${dx}px) rotate(${dx / 18}deg)`;
+            el.classList.toggle('cue-correct', dx > 22);
+            el.classList.toggle('cue-wrong', dx < -22);
         });
 
         const end = () => {
-            if (!tracking) return;
-            tracking = false;
+            if (mode !== 'swipe') { mode = 'idle'; return; }  // tap/scroll — onCardTap handles the flip
+            mode = 'idle';
             el.classList.remove('swiping');
-            if (!activated) return;   // it was a tap — onCardTap() handles the flip
 
-            suppressNextClick = true; // a drag just happened; swallow the click that follows it
-            setTimeout(() => { suppressNextClick = false; }, 400);
-
-            const dt = Date.now() - startT;
             const w = el.offsetWidth || 320;
             const moved = Math.abs(dx);
-            if (moved > w * 0.35 || (moved > 70 && dt < 250)) {
-                handleOutcome(dx > 0, true);   // animate the card off-screen, then grade
+            const commit = moved > w * COMMIT_FRAC || moved > COMMIT_PX ||
+                           (Math.abs(vx) > FLICK_V && moved > 28);
+
+            if (commit) {
+                suppressNextClick = true;
+                setTimeout(() => { suppressNextClick = false; }, 400);
+                handleOutcome(dx > 0, true);   // fling off-screen, then grade
             } else {
                 resetCardPos();
             }
         };
         el.addEventListener('pointerup', end);
         el.addEventListener('pointercancel', () => {
-            tracking = false;
-            el.classList.remove('swiping');
-            if (activated) resetCardPos();
+            if (mode === 'swipe') resetCardPos();
+            mode = 'idle';
         });
     }
 
