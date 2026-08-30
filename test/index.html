@@ -1607,30 +1607,36 @@
 
         matchState = { pairs: cards, matched: 0, sel: null, lock: false };
 
-        const tiles = [];
-        cards.forEach(c => {
-            tiles.push({ id: c.id, side: 'de', text: (c.emoji ? c.emoji + ' ' : '') + c.de });
-            tiles.push({ id: c.id, side: 'en', text: c.en });
-        });
-        shuffleArr(tiles);
+        // left column = German (shuffled), right column = English (shuffled)
+        const de = shuffleArr(cards.map(c => ({ id: c.id, side: 'de', text: (c.emoji ? c.emoji + ' ' : '') + c.de })));
+        const en = shuffleArr(cards.map(c => ({ id: c.id, side: 'en', text: c.en })));
 
         const grid = document.getElementById('match-grid');
         grid.textContent = '';
-        tiles.forEach(t => {
-            const el = document.createElement('button');
-            el.className = 'match-tile';
-            el.type = 'button';
-            el.textContent = t.text;
-            el.dataset.id = t.id;
-            el.dataset.side = t.side;
-            el.onclick = () => onMatchTap(el);
-            grid.appendChild(el);
-        });
+        for (let i = 0; i < cards.length; i++) {
+            [de[i], en[i]].forEach(t => {
+                const el = document.createElement('button');
+                el.className = 'match-tile';
+                el.type = 'button';
+                el.textContent = t.text;
+                el.dataset.id = t.id;
+                el.dataset.side = t.side;
+                el.onclick = () => onMatchTap(el);
+                grid.appendChild(el);
+            });
+        }
     }
 
     function onMatchTap(el) {
         if (!matchState || matchState.lock || el.classList.contains('done')) return;
         if (matchState.sel === el) { el.classList.remove('sel'); matchState.sel = null; return; }
+        // tapping another tile on the same side just moves the selection
+        if (matchState.sel && matchState.sel.dataset.side === el.dataset.side) {
+            matchState.sel.classList.remove('sel');
+            el.classList.add('sel');
+            matchState.sel = el;
+            return;
+        }
         if (!matchState.sel) { el.classList.add('sel'); matchState.sel = el; return; }
 
         const a = matchState.sel, b = el;
@@ -1674,13 +1680,57 @@
 
     // Replace the target German word in an example with a blank, so a card that
     // shows the English side and asks for the German word doesn't give it away.
+    const SEP_PREFIXES = ['abzu', 'anzu', 'aufzu', 'auszu', 'einzu', 'mitzu', 'vorzu',
+        'zurück', 'zusammen', 'wieder', 'entgegen', 'voran', 'voraus',
+        'ab', 'an', 'auf', 'aus', 'bei', 'ein', 'fest', 'fort', 'her', 'hin', 'los',
+        'mit', 'nach', 'vor', 'weg', 'zu', 'um', 'durch'];
+
+    function vowelFuzz(stem) {
+        return stem.split('').map(ch => {
+            const l = ch.toLowerCase();
+            if ('aä'.includes(l)) return '[aä]';
+            if ('oö'.includes(l)) return '[oö]';
+            if ('uü'.includes(l)) return '[uü]';
+            if (l === 'e') return '[ei]';
+            return ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }).join('');
+    }
+
     function clozeHint(hint, germanWord) {
         if (!hint || !germanWord) return hint;
         const core = germanWord.trim().replace(/^(der|die|das|ein|eine)\s+/i, '').trim();
         if (core.length < 2) return hint;
         const esc = core.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         try {
-            // core word + up to 3 inflection letters, bounded by non-letters
+            // separable verb split across the sentence: blank the conjugated stem
+            // AND the trailing particle  (anrufen -> "Ich ____ dich morgen ____.")
+            const lc = core.toLowerCase();
+            if (/en$/.test(lc)) {
+                const sep = SEP_PREFIXES
+                    .filter(p => lc.startsWith(p) && lc.length > p.length + 3)
+                    .sort((a, b) => b.length - a.length)[0];
+                if (sep) {
+                    const base = lc.slice(sep.length);            // e.g. "rufen"
+                    const stem = base.replace(/en$/, '').slice(0, 4);
+                    if (stem.length >= 3) {
+                        const conjRe = new RegExp('(^|[^\\p{L}])(' + vowelFuzz(stem) + '[\\p{L}]{0,4})(?![\\p{L}])', 'iu');
+                        if (conjRe.test(hint)) {
+                            let out = hint.replace(conjRe, '$1____');
+                            const particle = sep.replace(/zu$/, '');   // "an", "auf", ...
+                            const partRe = new RegExp('(^|[^\\p{L}])(' + particle + ')(?=[\\s.,!?;:)]|$)', 'i');
+                            if (partRe.test(out)) out = out.replace(partRe, '$1____');
+                            return out;
+                        }
+                    }
+                }
+            }
+            // long words (>=4): also blank inside a compound, keeping the prefix
+            // e.g. "Marketingabteilung" -> "Marketing____"
+            if (core.length >= 4) {
+                const cmp = new RegExp('([\\p{L}]{0,18})(' + esc + ')([\\p{L}]{0,6})', 'iu');
+                if (cmp.test(hint)) return hint.replace(cmp, (_m, pre) => pre + '____');
+            }
+            // otherwise: whole word + up to 3 inflection letters, bounded by non-letters
             const re = new RegExp('(^|[^\\p{L}])(' + esc + '[\\p{L}]{0,3})(?![\\p{L}])', 'iu');
             return re.test(hint) ? hint.replace(re, '$1____') : hint;
         } catch (e) {
