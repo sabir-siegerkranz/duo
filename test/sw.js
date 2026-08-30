@@ -8,7 +8,7 @@
  *   index.html); letting the SW queue them too would risk double-applying.
  */
 
-const VERSION = 'duocards-v1';
+const VERSION = 'duocards-v2';
 const SHELL = [
   './',
   './index.html',
@@ -46,22 +46,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Supabase REST reads: stale-while-revalidate.
+  // Supabase REST reads: network-first (fresh data wins when online), fall back
+  // to cache only when offline. SWR was serving stale card/stat counts after a
+  // practice session.
   if (req.url.startsWith(REST_PREFIX)) {
     event.respondWith(
       caches.open(VERSION).then(async (cache) => {
-        const cached = await cache.match(req);
-        const network = fetch(req)
-          .then((res) => {
-            if (res && res.ok) cache.put(req, res.clone());
-            return res;
-          })
-          .catch(() => null);
-        if (cached) { event.waitUntil(network); return cached; }
-        const res = await network;
-        if (res) return res;
-        // Offline and never cached: degrade to an empty result set.
-        return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        try {
+          const res = await fetch(req);
+          if (res && res.ok) cache.put(req, res.clone());
+          return res;
+        } catch (e) {
+          const cached = await cache.match(req);
+          if (cached) return cached;
+          // Offline and never cached: degrade to an empty result set.
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
       })
     );
     return;

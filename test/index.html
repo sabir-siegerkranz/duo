@@ -1053,7 +1053,8 @@
 
     function exitGameToHome() {
         showView('view-home');
-        fetchActiveDeckCards();
+        renderHomeStats();       // instant: in-memory cards were mutated by schedule() during practice
+        fetchActiveDeckCards();  // then reconcile with the server
         fetchStats();
     }
 
