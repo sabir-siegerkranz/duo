@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#00a8ff">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <title>DuoCards - Enhanced Edition</title>
+    <style>
+        :root {
+            --primary: #00a8ff;
+            --success: #2ed573;
+            --warning: #ffa502;
+            --danger: #ff4757;
+            --bg: #f4f6f9;
+            --card-bg: #ffffff;
+            --text: #2f3542;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 12px; }
+        .hidden { display: none !important; }
+
+        .card-box {
+            background: var(--card-bg);
+            padding: 16px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            display: block;
+        }
+
+        .header { display: flex; justify-content: space-between; align-items: center; }
+
+        select, button, input {
+            font-size: 15px;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            outline: none;
+            width: 100%;
+        }
+
+        input.input-error {
+            border: 2px solid var(--danger) !important;
+            background-color: #fff0f1;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+
+        .checkbox-container input {
+            width: auto;
+            cursor: pointer;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:active { transform: scale(0.98); opacity: 0.9; }
+        button:disabled { opacity: 0.5; cursor: default; }
+
+        .flashcard-container {
+            perspective: 1000px; height: 250px; margin: 10px 0;
+            touch-action: pan-y; transition: transform 0.18s ease, box-shadow 0.1s ease;
+            border-radius: 16px;
+        }
+        .flashcard-container.swiping { transition: none; }
+        .flashcard-container.cue-correct { box-shadow: 0 0 0 3px var(--success); }
+        .flashcard-container.cue-wrong { box-shadow: 0 0 0 3px var(--danger); }
+
+        .flashcard {
+            width: 100%; height: 100%; position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
+            cursor: pointer;
+        }
+        .flashcard.no-anim { transition: none !important; }
+        .flashcard.flipped { transform: rotateY(180deg); }
+        .card-face {
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; border-radius: 16px;
+            border: 1px solid #e1e8ed; background: white; padding: 20px; box-sizing: border-box; text-align: center;
+        }
+        .card-back { transform: rotateY(180deg); background-color: #f8fafc; }
+        .card-word { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+        .card-example { font-size: 14px; color: #64748b; font-style: italic; }
+        .card-hint { font-size: 16px; color: var(--text); font-weight: 400; margin-top: 12px; max-width: 90%; }
+
+        .controls { display: flex; gap: 10px; }
+        .controls button { flex: 1; padding: 14px; font-size: 16px; border-radius: 12px; }
+        .btn-again { background-color: var(--danger); }
+        .btn-good { background-color: var(--success); }
+
+        .form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+        .form-group label { font-size: 13px; font-weight: 600; color: #64748b; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; text-align: center; }
+        .stat-box { padding: 10px 6px; border-radius: 10px; background: #f8fafc; }
+        .stat-box.to-learn { border-top: 4px solid var(--primary); }
+        .stat-box.practiced { border-top: 4px solid var(--warning); }
+        .stat-box.learned { border-top: 4px solid var(--success); }
+        .stat-number { font-size: 18px; font-weight: bold; margin-top: 4px; }
+
+        /* streak / goal / history */
+        .stats-row { display: flex; justify-content: space-between; align-items: center; }
+        .streak-chip { font-weight: 700; font-size: 14px; }
+        #goal-edit { width: auto; background: none; color: var(--primary); border: none; font-size: 12px; padding: 4px; }
+        .goal-bar { height: 8px; background: #e2e8f0; border-radius: 4px; margin: 10px 0 4px; overflow: hidden; }
+        .goal-fill { height: 100%; background: var(--success); width: 0%; transition: width 0.3s ease; }
+        .goal-label { font-size: 12px; color: #64748b; }
+        .mini-bars { display: flex; gap: 4px; align-items: flex-end; height: 44px; margin-top: 10px; }
+        .mini-bar { flex: 1; background: #f1f5f9; border-radius: 3px 3px 0 0; height: 100%; display: flex; align-items: flex-end; overflow: hidden; }
+        .mini-bar-fill { width: 100%; background: #cbd5e1; border-radius: 3px 3px 0 0; min-height: 2px; transition: height 0.3s ease; }
+        .mini-bar-fill.today { background: var(--primary); }
+
+        .deck-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 14px; border: 2px solid #e0e0e0; border-radius: 12px; margin-bottom: 8px;
+            cursor: pointer; transition: all 0.2s ease;
+        }
+        .deck-item:active { transform: scale(0.98); }
+        .deck-item.selected { border-color: var(--primary); background-color: #e6f7ff; }
+        .deck-item-main { flex: 1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .deck-gear { width: auto; background: none; border: none; font-size: 18px; padding: 4px 8px; color: #94a3b8; }
+
+        .deck-badge {
+            font-size: 11px; padding: 2px 8px; border-radius: 10px;
+            background-color: #e2e8f0; color: #475569; font-weight: 600;
+        }
+
+        .card-row { display: flex; align-items: center; gap: 8px; padding: 10px 4px; border-bottom: 1px solid #eef2f7; }
+        .card-row-text { flex: 1; font-size: 14px; word-break: break-word; }
+        .row-btn { width: auto; background: #f1f5f9; color: #475569; border: none; padding: 8px 10px; font-size: 14px; }
+        .row-btn.danger { background: #fff0f1; color: var(--danger); }
+
+        .error-message { color: var(--danger); font-size: 12px; display: none; margin-top: 2px; }
+        .toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: #2f3542; color: white; padding: 10px 20px; border-radius: 20px;
+            font-size: 14px; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; z-index: 100;
+            max-width: 90vw; text-align: center;
+        }
+        .toast.show { opacity: 1; }
+        .toast.error { background: var(--danger); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="toast" class="toast">Card Saved!</div>
+
+    <!-- LOGIN VIEW -->
+    <div id="view-login" class="card-box" style="text-align: center;">
+        <h2 style="margin-top: 0;">Sign In</h2>
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="login-username" placeholder="Username">
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="login-password">
+        </div>
+        <label class="checkbox-container">
+            <input type="checkbox" id="remember-me"> Remember Me
+        </label>
+        <button id="login-btn" style="margin-top: 14px; padding: 14px;" onclick="login()">Log In</button>
+    </div>
+
+    <!-- HOME VIEW -->
+    <div id="view-home" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="card-box header">
+            <div><strong>User: </strong><span id="user-display"></span></div>
+            <button style="background: none; color: #94a3b8; border: none; padding: 0; font-size: 12px; width: auto;" onclick="logout()">Logout</button>
+        </div>
+
+        <div class="card-box" id="stats-box">
+            <div class="stats-row">
+                <div class="streak-chip">🔥 <span id="streak-count">0</span> day streak</div>
+                <button id="goal-edit" onclick="setDailyGoal()">Goal: <span id="goal-val">20</span>/day ✎</button>
+            </div>
+            <div class="goal-bar"><div class="goal-fill" id="goal-fill"></div></div>
+            <div class="goal-label"><span id="today-count">0</span> / <span id="goal-val2">20</span> reviews today</div>
+            <div class="mini-bars" id="mini-bars"></div>
+        </div>
+
+        <div class="card-box">
+            <h3 style="margin-top:0;">Your Decks</h3>
+            <div id="deck-list-container"></div>
+            <button style="margin-top: 10px; background-color: #3b82f6;" onclick="createNewDeck()">+ Create New Deck</button>
+        </div>
+
+        <div class="card-box">
+            <h3 style="margin-top:0;">Deck Overview</h3>
+            <div class="form-group">
+                <label>Select Deck:</label>
+                <select id="homeDeckSelector" onchange="selectDeckFromDropdown()"></select>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-box to-learn">
+                    <div style="font-size:11px;">📚 To Learn</div>
+                    <div class="stat-number" id="home-count-to-learn">0</div>
+                </div>
+                <div class="stat-box practiced">
+                    <div style="font-size:11px;">⏱️ Practiced</div>
+                    <div class="stat-number" id="home-count-practiced">0</div>
+                </div>
+                <div class="stat-box learned">
+                    <div style="font-size:11px;">🎉 Learned</div>
+                    <div class="stat-number" id="home-count-learned">0</div>
+                </div>
+            </div>
+            <button id="play-btn" style="background-color: var(--success); padding: 14px; font-size: 16px;" onclick="startPracticeFromHome()">▶ Play Deck</button>
+            <button style="margin-top: 8px; background-color: #718096;" onclick="openAddCardModal()">+ Add Cards</button>
+            <button style="margin-top: 8px; background-color: #94a3b8;" onclick="openManageCards()">☰ Manage Cards</button>
+        </div>
+    </div>
+
+    <!-- GAME VIEW -->
+    <div id="view-game" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="card-box header">
+            <button style="width: auto; padding: 6px 12px; background-color: #a0aec0;" onclick="exitGameToHome()">← Exit</button>
+            <div style="font-weight: bold;" id="game-deck-title">Deck</div>
+        </div>
+
+        <div class="card-box">
+            <div id="game-container">
+                <div class="flashcard-container" id="flashcard-container">
+                    <div class="flashcard" id="card" onclick="onCardTap()">
+                        <div class="card-face card-front">
+                            <div class="card-word" id="front-text">Loading...</div>
+                            <div class="card-hint" id="front-hint"></div>
+                        </div>
+                        <div class="card-face card-back">
+                            <div class="card-word" id="back-text">...</div>
+                            <div class="card-example" id="back-example">...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button class="btn-again" id="btn-wrong" onclick="handleOutcome(false)">Wrong</button>
+                    <button class="btn-good" id="btn-correct" onclick="handleOutcome(true)">Correct</button>
+                </div>
+                <div style="text-align:center; font-size:11px; color:#94a3b8; margin-top:8px;">Swipe left = Wrong · right = Correct · tap = flip</div>
+            </div>
+            <div id="empty-state" class="hidden" style="text-align: center; padding: 40px 0;">
+                🎉 All cards in this deck completed!
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD / EDIT CARD VIEW -->
+    <div id="view-add" class="card-box hidden">
+        <button style="width: auto; padding: 6px 12px; background-color: #a0aec0; margin-bottom: 12px;" onclick="exitAddToHome()">← Back</button>
+        <h3 style="margin-top:0;" id="add-card-title">Add Card</h3>
+
+        <div class="form-group">
+            <label id="label-side-a">German Word/Phrase:</label>
+            <input type="text" id="input-de" onfocus="lastFocused = 'de'" oninput="handleInputChange()">
+            <div id="de-error" class="error-message">Word already exists in deck!</div>
+        </div>
+
+        <div class="form-group">
+            <label id="label-side-b">English Translation:</label>
+            <input type="text" id="input-en" onfocus="lastFocused = 'en'">
+        </div>
+
+        <button id="btn-translate" style="margin-bottom: 12px; background-color: #3b82f6;" onclick="enrichCard()">⚡ Auto-Translate</button>
+
+        <div id="standard-deck-fields">
+            <div class="form-group">
+                <label>Example Sentence (German):</label>
+                <input type="text" id="input-ex-de">
+            </div>
+        </div>
+
+        <div id="free-deck-fields" class="hidden">
+            <div class="form-group">
+                <label>Hint (optional):</label>
+                <input type="text" id="input-hint" placeholder="A clue shown during practice">
+            </div>
+        </div>
+
+        <button id="btn-save-card" onclick="saveCard()">Save Card</button>
+    </div>
+
+    <!-- MANAGE CARDS VIEW -->
+    <div id="view-cards" class="card-box hidden">
+        <button style="width: auto; padding: 6px 12px; background-color: #a0aec0; margin-bottom: 12px;" onclick="exitCardsToHome()">← Back</button>
+        <h3 style="margin-top:0;">Manage Cards — <span id="cards-deck-name"></span></h3>
+        <div id="card-list"></div>
+    </div>
+
+    <!-- DECK SETTINGS VIEW -->
+    <div id="view-deck-settings" class="card-box hidden">
+        <button style="width: auto; padding: 6px 12px; background-color: #a0aec0; margin-bottom: 12px;" onclick="exitDeckSettings()">← Back</button>
+        <h3 style="margin-top:0;">Deck Settings</h3>
+        <div class="form-group">
+            <label>Name</label>
+            <input type="text" id="ds-name">
+        </div>
+        <div class="form-group">
+            <label>Practice direction</label>
+            <select id="ds-direction">
+                <option value="random">Random side first</option>
+                <option value="learning_first">Learning language first</option>
+                <option value="native_first">Translation first</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>New cards per day</label>
+            <input type="number" id="ds-limit" min="0" max="200">
+        </div>
+        <button onclick="saveDeckSettings()">Save</button>
+        <button style="background: var(--danger); margin-top: 8px;" onclick="deleteDeckFromSettings()">Delete Deck</button>
+    </div>
+</div>
+
+<script>
+    // ------------------------------------------------------------------
+    // Config
+    // ------------------------------------------------------------------
+    const SUPABASE_URL = "https://wmvyujfggczdyexrifkk.supabase.co";
+    const API_URL = SUPABASE_URL + "/rest/v1";
+    const API_KEY = "sb_publishable_UR1kiYuEB-m2FeEFc-w5AQ_GU5rpo-a";
+    const ENRICH_URL = SUPABASE_URL + "/functions/v1/enrich";
+
+    const headers = {
+        "apikey": API_KEY,
+        "Authorization": "Bearer " + API_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    };
+
+    const DAY_MS = 86400000;
+    const MATURE_DAYS = 21;
+    const PENDING_KEY = "duocards_pending";
+
+    // ------------------------------------------------------------------
+    // State
+    // ------------------------------------------------------------------
+    let currentUser = null;
+    let decks = [];
+    let activeDeckId = null;
+    let allCards = [];           // cards for the active deck (home stats + management)
+    let sessionQueue = [];       // cards queued for the current practice run
+    let currentCard = null;      // the card on screen (object ref, not an index)
+    let isTransitioning = false;
+    let editingCardId = null;
+    let settingsDeckId = null;
+    let statsRows = [];
+    let lastFocused = 'de';
+
+    const VIEWS = ['view-login', 'view-home', 'view-game', 'view-add', 'view-cards', 'view-deck-settings'];
+    function showView(id) {
+        VIEWS.forEach(v => {
+            const el = document.getElementById(v);
+            if (el) el.classList.toggle('hidden', v !== id);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        checkSavedSession();
+        flushPending();
+        initSwipe();
+    });
+    window.addEventListener('online', flushPending);
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+
+    // ------------------------------------------------------------------
+    // Utilities
+    // ------------------------------------------------------------------
+    function showToast(msg, isError) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.toggle('error', !!isError);
+        toast.classList.add('show');
+        clearTimeout(toast._t);
+        toast._t = setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    class ApiError extends Error {
+        constructor(status, body) { super("HTTP " + status); this.status = status; this.body = body; }
+    }
+    async function apiFetch(url, opts = {}) {
+        let res;
+        try {
+            res = await fetch(url, opts);
+        } catch (e) {
+            throw new ApiError(0, String(e));
+        }
+        if (!res.ok) {
+            let body = "";
+            try { body = await res.clone().text(); } catch (e) {}
+            throw new ApiError(res.status, body);
+        }
+        return res;
+    }
+
+    function localDate(d) {
+        return d.getFullYear() + '-' +
+            String(d.getMonth() + 1).padStart(2, '0') + '-' +
+            String(d.getDate()).padStart(2, '0');
+    }
+    function relTime(ms) {
+        const m = Math.max(1, Math.round(ms / 60000));
+        if (m < 60) return "in " + m + " min";
+        const h = Math.round(m / 60);
+        if (h < 24) return "in " + h + " h";
+        return "in " + Math.round(h / 24) + " d";
+    }
+
+    async function logActivity(action, details = "") {
+        if (!currentUser) return;
+        try {
+            await fetch(`${API_URL}/user_activity_logs`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                    user_id: currentUser.id,
+                    username: currentUser.username,
+                    action: action,
+                    details: details
+                })
+            });
+        } catch (e) {
+            console.error("Activity logging error:", e);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Auth
+    // ------------------------------------------------------------------
+    function checkSavedSession() {
+        const savedUser = localStorage.getItem('duocards_user') || sessionStorage.getItem('duocards_user');
+        if (savedUser) {
+            try {
+                currentUser = JSON.parse(savedUser);
+                document.getElementById('user-display').textContent = currentUser.username;
+                showView('view-home');
+                fetchDecks();
+                return;
+            } catch (e) {
+                logout();
+            }
+        }
+        showView('view-login');
+    }
+
+    async function login() {
+        const usernameInput = document.getElementById('login-username').value.trim();
+        const passwordInput = document.getElementById('login-password').value;
+        const rememberMe = document.getElementById('remember-me').checked;
+        const btn = document.getElementById('login-btn');
+
+        if (!usernameInput || !passwordInput) return showToast("Enter username and password", true);
+        btn.disabled = true;
+        btn.textContent = "Signing in...";
+
+        try {
+            const res = await fetch(`${API_URL}/app_users?username=eq.${encodeURIComponent(usernameInput)}&password=eq.${encodeURIComponent(passwordInput)}`, { headers });
+            const data = await res.json();
+
+            if (!data || data.length === 0) {
+                showToast("Invalid username or password", true);
+                return;
+            }
+
+            currentUser = data[0];
+            const sessionData = JSON.stringify(currentUser);
+
+            if (rememberMe) {
+                localStorage.setItem('duocards_user', sessionData);
+                sessionStorage.removeItem('duocards_user');
+            } else {
+                sessionStorage.setItem('duocards_user', sessionData);
+                localStorage.removeItem('duocards_user');
+            }
+
+            document.getElementById('user-display').textContent = currentUser.username;
+            showView('view-home');
+
+            logActivity("login", "User logged into session");
+            await fetchDecks();
+        } catch (e) {
+            showToast("Connection error: " + e.message, true);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "Log In";
+        }
+    }
+
+    function logout() {
+        if (currentUser) logActivity("logout", "User logged out");
+        currentUser = null;
+        localStorage.removeItem('duocards_user');
+        sessionStorage.removeItem('duocards_user');
+        showView('view-login');
+    }
+
+    // ------------------------------------------------------------------
+    // Decks
+    // ------------------------------------------------------------------
+    async function fetchDecks() {
+        try {
+            const res = await apiFetch(`${API_URL}/decks?user_id=eq.${currentUser.id}`, { headers });
+            decks = await res.json();
+        } catch (e) {
+            showToast("Couldn't load decks — check your connection", true);
+            return;
+        }
+
+        if (!decks || decks.length === 0) {
+            const created = await createDeck("General Words", "normal");
+            if (created) await fetchDecks();   // re-fetch so the new deck actually renders
+            return;
+        }
+
+        if (!activeDeckId || !decks.some(d => d.id == activeDeckId)) activeDeckId = decks[0].id;
+        renderHomeDecks();
+        fetchStats();
+    }
+
+    function renderHomeDecks() {
+        const listEl = document.getElementById('deck-list-container');
+        const selectorEl = document.getElementById('homeDeckSelector');
+        listEl.textContent = '';
+        selectorEl.textContent = '';
+
+        decks.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.id;
+            opt.textContent = d.name + (d.type === 'free' ? ' (Free)' : '');
+            selectorEl.appendChild(opt);
+
+            const item = document.createElement('div');
+            item.className = 'deck-item' + (d.id == activeDeckId ? ' selected' : '');
+
+            const left = document.createElement('div');
+            left.className = 'deck-item-main';
+            const name = document.createElement('strong');
+            name.textContent = d.name;
+            const badge = document.createElement('span');
+            badge.className = 'deck-badge';
+            badge.textContent = d.type === 'free' ? 'Free Deck' : 'Standard';
+            left.appendChild(name);
+            left.appendChild(document.createTextNode(' '));
+            left.appendChild(badge);
+            left.onclick = () => selectDeck(d.id);
+
+            const gear = document.createElement('button');
+            gear.className = 'deck-gear';
+            gear.textContent = '⚙';
+            gear.onclick = (e) => { e.stopPropagation(); openDeckSettings(d.id); };
+
+            item.appendChild(left);
+            item.appendChild(gear);
+            listEl.appendChild(item);
+        });
+
+        selectorEl.value = activeDeckId;
+        fetchActiveDeckCards();
+    }
+
+    function selectDeck(deckId) {
+        activeDeckId = deckId;
+        renderHomeDecks();
+    }
+
+    function selectDeckFromDropdown() {
+        activeDeckId = document.getElementById('homeDeckSelector').value;
+        renderHomeDecks();
+    }
+
+    async function createDeck(deckName, deckType) {
+        try {
+            const res = await fetch(`${API_URL}/decks`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ name: deckName, type: deckType, user_id: currentUser.id })
+            });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                showToast("DB error: " + (errData.message || "could not create deck"), true);
+                return null;
+            }
+            const createdDecks = await res.json();
+            logActivity("deck_created", `Deck: ${deckName} (${deckType})`);
+            return createdDecks[0];
+        } catch (e) {
+            showToast("Network error creating deck", true);
+            return null;
+        }
+    }
+
+    async function createNewDeck() {
+        const name = prompt("Enter new deck name:");
+        if (!name || !name.trim()) return;
+
+        const isFree = confirm("OK = 'Free Deck' (2-sided, optional hint)\nCancel = 'Standard Deck' (translation + example sentence)");
+        const type = isFree ? "free" : "normal";
+
+        const newDeck = await createDeck(name.trim(), type);
+        if (newDeck) {
+            activeDeckId = newDeck.id;
+            await fetchDecks();
+            showToast("Deck created!");
+        }
+    }
+
+    function openDeckSettings(deckId) {
+        const d = decks.find(x => x.id == deckId);
+        if (!d) return;
+        settingsDeckId = deckId;
+        document.getElementById('ds-name').value = d.name || '';
+        document.getElementById('ds-direction').value = d.practice_direction || 'random';
+        document.getElementById('ds-limit').value = (d.daily_new_limit != null ? d.daily_new_limit : 10);
+        showView('view-deck-settings');
+    }
+
+    async function saveDeckSettings() {
+        const body = {
+            name: document.getElementById('ds-name').value.trim() || 'Untitled',
+            practice_direction: document.getElementById('ds-direction').value,
+            daily_new_limit: Math.max(0, parseInt(document.getElementById('ds-limit').value, 10) || 0)
+        };
+        try {
+            await apiFetch(`${API_URL}/decks?id=eq.${settingsDeckId}`, { method: "PATCH", headers, body: JSON.stringify(body) });
+            showToast("Deck updated");
+            await fetchDecks();
+            exitDeckSettings();
+        } catch (e) {
+            showToast("Save failed", true);
+        }
+    }
+
+    async function deleteDeckFromSettings() {
+        if (!confirm("Delete this deck and ALL its cards? This cannot be undone.")) return;
+        try {
+            await apiFetch(`${API_URL}/cards?deck_id=eq.${settingsDeckId}`, { method: "DELETE", headers });
+            await apiFetch(`${API_URL}/decks?id=eq.${settingsDeckId}`, { method: "DELETE", headers });
+            if (activeDeckId == settingsDeckId) activeDeckId = null;
+            showToast("Deck deleted");
+            await fetchDecks();
+            exitDeckSettings();
+        } catch (e) {
+            showToast("Delete failed", true);
+        }
+    }
+
+    function exitDeckSettings() { showView('view-home'); }
+
+    // ------------------------------------------------------------------
+    // Cards data + home stats
+    // ------------------------------------------------------------------
+    async function fetchActiveDeckCards() {
+        if (!activeDeckId) { allCards = []; renderHomeStats(); return; }
+        try {
+            const res = await apiFetch(`${API_URL}/cards?deck_id=eq.${activeDeckId}&user_id=eq.${currentUser.id}`, { headers });
+            allCards = await res.json();
+        } catch (e) {
+            allCards = [];
+            showToast("Couldn't load cards", true);
+        }
+        renderHomeStats();
+    }
+
+    function srsState(c) {
+        const iv = Number(c.interval_days) || 0;
+        const reps = Number(c.reps) || 0;
+        const lapses = Number(c.lapses) || 0;
+        if (reps === 0 && lapses === 0 && iv === 0) return 'new';
+        if (iv >= MATURE_DAYS) return 'mature';
+        return 'young';
+    }
+
+    function isDue(c) {
+        return !c.due_at || new Date(c.due_at).getTime() <= Date.now();
+    }
+
+    function renderHomeStats() {
+        let toLearn = 0, practiced = 0, learned = 0;
+        allCards.forEach(c => {
+            const s = srsState(c);
+            if (s === 'new') toLearn++;
+            else if (s === 'mature') learned++;
+            else practiced++;
+        });
+        document.getElementById('home-count-to-learn').textContent = toLearn;
+        document.getElementById('home-count-practiced').textContent = practiced;
+        document.getElementById('home-count-learned').textContent = learned;
+
+        const dueCount = allCards.filter(isDue).length;
+        const playBtn = document.getElementById('play-btn');
+        if (playBtn) playBtn.textContent = dueCount ? `▶ Play Deck (${dueCount} due)` : '▶ Play Deck';
+    }
+
+    // ------------------------------------------------------------------
+    // Add / edit card
+    // ------------------------------------------------------------------
+    function configureAddForm(isFree) {
+        document.getElementById('standard-deck-fields').classList.toggle('hidden', isFree);
+        document.getElementById('free-deck-fields').classList.toggle('hidden', !isFree);
+        document.getElementById('label-side-a').textContent = isFree ? 'Front Side:' : 'German Word/Phrase:';
+        document.getElementById('label-side-b').textContent = isFree ? 'Back Side:' : 'English Translation:';
+    }
+
+    function clearAddForm() {
+        ['input-de', 'input-en', 'input-ex-de', 'input-hint'].forEach(i => { document.getElementById(i).value = ''; });
+        document.getElementById('input-de').classList.remove('input-error');
+        document.getElementById('de-error').style.display = 'none';
+        document.getElementById('btn-save-card').disabled = false;
+    }
+
+    function openAddCardModal() {
+        if (!activeDeckId) return showToast("Select a deck first", true);
+        editingCardId = null;
+        const deck = decks.find(d => d.id == activeDeckId);
+        configureAddForm(deck && deck.type === 'free');
+        document.getElementById('add-card-title').textContent = 'Add Card';
+        document.getElementById('btn-save-card').textContent = 'Save Card';
+        clearAddForm();
+        showView('view-add');
+    }
+
+    function openEditCard(id) {
+        const c = allCards.find(x => x.id === id);
+        if (!c) return;
+        editingCardId = id;
+        const deck = decks.find(d => d.id == activeDeckId);
+        configureAddForm(deck && deck.type === 'free');
+        document.getElementById('add-card-title').textContent = 'Edit Card';
+        document.getElementById('btn-save-card').textContent = 'Update Card';
+        document.getElementById('input-de').value = c.de || '';
+        document.getElementById('input-en').value = c.en || '';
+        document.getElementById('input-ex-de').value = c.ex_de || '';
+        document.getElementById('input-hint').value = c.hint || '';
+        document.getElementById('input-de').classList.remove('input-error');
+        document.getElementById('de-error').style.display = 'none';
+        document.getElementById('btn-save-card').disabled = false;
+        showView('view-add');
+    }
+
+    function exitAddToHome() {
+        editingCardId = null;
+        showView('view-home');
+        fetchActiveDeckCards();
+    }
+
+    function handleInputChange() {
+        const deInput = document.getElementById('input-de');
+        const deVal = deInput.value.trim().toLowerCase();
+        const err = document.getElementById('de-error');
+        const dup = !!deVal && allCards.some(c => c.de && c.de.toLowerCase() === deVal && c.id !== editingCardId);
+        deInput.classList.toggle('input-error', dup);
+        err.style.display = dup ? 'block' : 'none';
+        document.getElementById('btn-save-card').disabled = dup;
+    }
+
+    async function enrichCard() {
+        const deInput = document.getElementById('input-de');
+        const enInput = document.getElementById('input-en');
+        const exDeInput = document.getElementById('input-ex-de');
+        const btn = document.getElementById('btn-translate');
+        const deck = decks.find(d => d.id == activeDeckId);
+        const isFree = deck && deck.type === 'free';
+
+        const haveDe = deInput.value.trim();
+        const haveEn = enInput.value.trim();
+        const direction = ((lastFocused === 'en' && haveEn) || (!haveDe && haveEn)) ? 'en-de' : 'de-en';
+        const term = direction === 'de-en' ? haveDe : haveEn;
+        if (!term) return showToast("Type a word first", true);
+
+        btn.disabled = true;
+        const orig = btn.textContent;
+        btn.textContent = "Translating…";
+        try {
+            const res = await fetch(ENRICH_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": "Bearer " + API_KEY, "apikey": API_KEY },
+                body: JSON.stringify({ term, direction })
+            });
+            if (!res.ok) throw new Error("enrich " + res.status);
+            const data = await res.json();
+
+            if (direction === 'de-en') {
+                if (data.translation) enInput.value = data.translation;
+            } else {
+                deInput.value = (data.article ? data.article + ' ' : '') + (data.translation || '');
+            }
+            if (!isFree && data.example_de) exDeInput.value = data.example_de;
+            handleInputChange();
+        } catch (e) {
+            showToast("Auto-translate failed — enter it manually", true);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = orig;
+        }
+    }
+
+    async function saveCard() {
+        const de = document.getElementById('input-de').value.trim();
+        const en = document.getElementById('input-en').value.trim();
+        const ex_de = document.getElementById('input-ex-de').value.trim();
+        const hint = document.getElementById('input-hint').value.trim();
+
+        if (!de || !en) return showToast("Both sides are required", true);
+
+        const dup = allCards.some(c => c.de && c.de.toLowerCase() === de.toLowerCase() && c.id !== editingCardId);
+        if (dup) return showToast("That word already exists in this deck", true);
+
+        const deck = decks.find(d => d.id == activeDeckId);
+        const isFree = deck && deck.type === 'free';
+        const body = {
+            de, en,
+            hint: isFree ? (hint || null) : null,
+            ex_de: isFree ? null : (ex_de || null)
+        };
+
+        try {
+            if (editingCardId) {
+                await apiFetch(`${API_URL}/cards?id=eq.${editingCardId}`, { method: "PATCH", headers, body: JSON.stringify(body) });
+                const c = allCards.find(x => x.id === editingCardId);
+                if (c) Object.assign(c, body);
+                showToast("Card updated");
+                editingCardId = null;
+                renderHomeStats();
+                renderCardList();
+                showView('view-cards');
+                return;
+            }
+
+            const newBody = Object.assign({}, body, {
+                user_id: currentUser.id,
+                deck_id: activeDeckId,
+                stage: 0,
+                reps: 0,
+                lapses: 0,
+                interval_days: 0,
+                ease: 2.5,
+                due_at: new Date().toISOString()
+            });
+            const res = await apiFetch(`${API_URL}/cards`, { method: "POST", headers, body: JSON.stringify(newBody) });
+            const created = await res.json();
+            if (Array.isArray(created) && created[0]) allCards.push(created[0]);
+            logActivity("card_added", `${de} -> ${en}`);
+            showToast("Card saved");
+            clearAddForm();
+            renderHomeStats();
+        } catch (e) {
+            showToast("Save failed", true);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Manage cards
+    // ------------------------------------------------------------------
+    function openManageCards() {
+        if (!activeDeckId) return showToast("Select a deck first", true);
+        const d = decks.find(x => x.id == activeDeckId);
+        document.getElementById('cards-deck-name').textContent = d ? d.name : '';
+        renderCardList();
+        showView('view-cards');
+    }
+
+    function exitCardsToHome() {
+        showView('view-home');
+        renderHomeStats();
+    }
+
+    function renderCardList() {
+        const wrap = document.getElementById('card-list');
+        wrap.textContent = '';
+        if (!allCards.length) { wrap.textContent = 'No cards yet.'; return; }
+
+        allCards.slice().sort((a, b) => (a.de || '').localeCompare(b.de || '')).forEach(c => {
+            const row = document.createElement('div');
+            row.className = 'card-row';
+
+            const txt = document.createElement('div');
+            txt.className = 'card-row-text';
+            const de = document.createElement('strong');
+            de.textContent = c.de || '';
+            const en = document.createElement('span');
+            en.textContent = ' — ' + (c.en || '');
+            txt.appendChild(de);
+            txt.appendChild(en);
+
+            const edit = document.createElement('button');
+            edit.className = 'row-btn';
+            edit.textContent = '✏️';
+            edit.onclick = () => openEditCard(c.id);
+
+            const del = document.createElement('button');
+            del.className = 'row-btn danger';
+            del.textContent = '🗑';
+            del.onclick = () => deleteCard(c.id);
+
+            row.appendChild(txt);
+            row.appendChild(edit);
+            row.appendChild(del);
+            wrap.appendChild(row);
+        });
+    }
+
+    async function deleteCard(id) {
+        if (!confirm("Delete this card?")) return;
+        try {
+            await apiFetch(`${API_URL}/cards?id=eq.${id}`, { method: "DELETE", headers });
+            allCards = allCards.filter(c => c.id !== id);
+            renderCardList();
+            renderHomeStats();
+            showToast("Card deleted");
+        } catch (e) {
+            showToast("Delete failed", true);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // SRS scheduler (SM-2-lite, two outcomes)
+    // ------------------------------------------------------------------
+    function schedule(card, correct) {
+        const now = Date.now();
+        let interval = Number(card.interval_days) || 0;
+        let ease = Number(card.ease) || 2.5;
+        let reps = Number(card.reps) || 0;
+        let lapses = Number(card.lapses) || 0;
+
+        if (correct) {
+            if (reps === 0) interval = 1;
+            else if (reps === 1) interval = 3;
+            else interval = Math.ceil(interval * ease);
+            reps += 1;
+        } else {
+            reps = 0;
+            lapses += 1;
+            ease = Math.max(1.3, ease - 0.20);
+            interval = 0;
+        }
+
+        const dueAt = correct ? new Date(now + interval * DAY_MS) : new Date(now);
+        const patch = {
+            interval_days: interval,
+            ease: ease,
+            reps: reps,
+            lapses: lapses,
+            due_at: dueAt.toISOString(),
+            last_reviewed_at: new Date(now).toISOString()
+        };
+        Object.assign(card, patch);
+        return patch;
+    }
+
+    async function newDoneToday(deckId) {
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        try {
+            const res = await fetch(
+                `${API_URL}/review_log?deck_id=eq.${deckId}&was_new=is.true&reviewed_at=gte.${start.toISOString()}&select=id`,
+                { headers }
+            );
+            if (!res.ok) return 0;
+            const rows = await res.json();
+            return Array.isArray(rows) ? rows.length : 0;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    async function buildSessionQueue() {
+        const now = Date.now();
+        const deck = decks.find(d => d.id == activeDeckId);
+        const limit = deck && deck.daily_new_limit != null ? deck.daily_new_limit : 10;
+        const doneNew = await newDoneToday(activeDeckId);
+        const newAllowance = Math.max(0, limit - doneNew);
+
+        const due = allCards
+            .filter(c => (Number(c.reps) > 0 || Number(c.lapses) > 0) && isDue(c))
+            .sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
+
+        const fresh = allCards
+            .filter(c => Number(c.reps) === 0 && Number(c.lapses) === 0)
+            .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
+            .slice(0, newAllowance);
+
+        // interleave: roughly every 4th card is a new one
+        const queue = [];
+        let di = 0, fi = 0, i = 0;
+        while (di < due.length || fi < fresh.length) {
+            if ((i % 4 === 3 || di >= due.length) && fi < fresh.length) queue.push(fresh[fi++]);
+            else if (di < due.length) queue.push(due[di++]);
+            else if (fi < fresh.length) queue.push(fresh[fi++]);
+            i++;
+        }
+        sessionQueue = queue;
+    }
+
+    // ------------------------------------------------------------------
+    // Practice
+    // ------------------------------------------------------------------
+    async function startPracticeFromHome() {
+        if (!activeDeckId) return showToast("Select a deck first", true);
+        const deck = decks.find(d => d.id == activeDeckId);
+        document.getElementById('game-deck-title').textContent = deck ? deck.name : 'Practice';
+        showView('view-game');
+        currentCard = null;
+        isTransitioning = false;
+        await fetchActiveDeckCards();
+        await buildSessionQueue();
+        logActivity("practice_started", `Deck: ${activeDeckId}`);
+        loadNextCard();
+    }
+
+    function exitGameToHome() {
+        showView('view-home');
+        fetchActiveDeckCards();
+        fetchStats();
+    }
+
+    function emptyStateMessage() {
+        if (!allCards.length) return "📭 No cards in this deck yet — add some!";
+        const upcoming = allCards
+            .filter(c => c.due_at && new Date(c.due_at).getTime() > Date.now())
+            .sort((a, b) => new Date(a.due_at) - new Date(b.due_at))[0];
+        if (!upcoming) return "🎉 All caught up! Add more cards or come back later.";
+        return "🎉 All caught up! Next review " + relTime(new Date(upcoming.due_at).getTime() - Date.now()) + ".";
+    }
+
+    function loadNextCard() {
+        const cardEl = document.getElementById('card');
+        cardEl.classList.add('no-anim');
+        cardEl.classList.remove('flipped');
+        resetCardPos();
+
+        currentCard = sessionQueue.shift() || null;
+
+        if (!currentCard) {
+            document.getElementById('game-container').classList.add('hidden');
+            const es = document.getElementById('empty-state');
+            es.classList.remove('hidden');
+            es.textContent = emptyStateMessage();
+            isTransitioning = false;
+            return;
+        }
+
+        document.getElementById('game-container').classList.remove('hidden');
+        document.getElementById('empty-state').classList.add('hidden');
+        renderCard(currentCard);
+
+        setTimeout(() => cardEl.classList.remove('no-anim'), 50);
+        isTransitioning = false;
+    }
+
+    function renderCard(card) {
+        const deck = decks.find(d => d.id == activeDeckId);
+        const dir = deck ? (deck.practice_direction || 'random') : 'random';
+        let learningFront;
+        if (dir === 'learning_first') learningFront = true;
+        else if (dir === 'native_first') learningFront = false;
+        else learningFront = Math.random() > 0.5;
+
+        const hint = card.hint || card.ex_de || '';
+        const frontText = learningFront ? card.de : card.en;
+        const backText = learningFront ? card.en : card.de;
+
+        document.getElementById('front-text').textContent = frontText;
+        document.getElementById('front-hint').textContent = hint;
+        document.getElementById('back-text').textContent = backText;
+        document.getElementById('back-example').textContent = hint ? '"' + hint + '"' : '';
+    }
+
+    function flipCard() {
+        document.getElementById('card').classList.toggle('flipped');
+    }
+
+    // Native click handler on the card (works reliably on iOS, unlike a
+    // pointerup-based tap). Swipes set suppressNextClick so the trailing click
+    // after a drag doesn't also flip.
+    let suppressNextClick = false;
+    function onCardTap() {
+        if (suppressNextClick) { suppressNextClick = false; return; }
+        if (isTransitioning || !currentCard) return;
+        flipCard();
+    }
+
+    // Single entry point for both the buttons and the swipe. The isTransitioning
+    // lock is held from here until loadNextCard() has rendered the next card, so
+    // a double-tap or a tap-during-fling can't rate the wrong card.
+    function handleOutcome(correct, animate) {
+        if (!currentCard || isTransitioning) return;
+        isTransitioning = true;
+
+        const card = currentCard;
+
+        const finish = () => {
+            const wasNew = (Number(card.reps) || 0) === 0 && (Number(card.lapses) || 0) === 0;
+            const patch = schedule(card, correct);
+            if (!correct) {
+                // bring the card back later in the same session
+                const pos = Math.min(4, sessionQueue.length);
+                sessionQueue.splice(pos, 0, card);
+            }
+            persistReview(card, correct, patch, wasNew);   // fire and forget
+            loadNextCard();                                 // clears isTransitioning
+        };
+
+        if (animate) {
+            const el = document.getElementById('flashcard-container');
+            const dir = correct ? 1 : -1;
+            el.classList.remove('swiping');
+            el.classList.toggle('cue-correct', correct);
+            el.classList.toggle('cue-wrong', !correct);
+            el.style.transform = `translateX(${dir * 520}px) rotate(${dir * 28}deg)`;
+            setTimeout(finish, 170);
+        } else {
+            finish();
+        }
+    }
+
+    let deferredNotified = false;
+    function notifyDeferredOnce() {
+        if (deferredNotified) return;
+        deferredNotified = true;
+        showToast("Saved on this device — will sync when online");
+    }
+
+    // The card's SRS state (PATCH cards) is the write that matters. The review_log
+    // POST is analytics for the streak/history charts — if it fails, learning
+    // progress is NOT lost, so it must never alarm the user.
+    async function persistReview(card, correct, patch, wasNew) {
+        const reviewRow = {
+            user_id: currentUser.id,
+            card_id: card.id,
+            deck_id: card.deck_id || activeDeckId,
+            outcome: correct,
+            was_new: wasNew,
+            interval_after: patch.interval_days,
+            reviewed_at: new Date().toISOString()
+        };
+
+        try {
+            const r = await fetch(`${API_URL}/cards?id=eq.${card.id}`, { method: "PATCH", headers, body: JSON.stringify(patch) });
+            if (!r.ok) throw new Error("cards " + r.status + " " + (await r.text().catch(() => '')));
+        } catch (e) {
+            console.warn('[DuoCards] card save deferred:', (e && e.message) || e);
+            queuePending({ kind: 'card', cardId: card.id, patch });
+            notifyDeferredOnce();
+        }
+
+        try {
+            const r = await fetch(`${API_URL}/review_log`, { method: "POST", headers, body: JSON.stringify(reviewRow) });
+            if (!r.ok) throw new Error("review_log " + r.status + " " + (await r.text().catch(() => '')));
+        } catch (e) {
+            console.warn('[DuoCards] stats log deferred (progress is safe):', (e && e.message) || e);
+            queuePending({ kind: 'log', reviewRow });
+        }
+    }
+
+    function queuePending(item) {
+        let q = [];
+        try { q = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch (e) {}
+        q.push(item);
+        localStorage.setItem(PENDING_KEY, JSON.stringify(q));
+    }
+
+    async function flushPending() {
+        let q = [];
+        try { q = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch (e) {}
+        if (!q.length) return;
+
+        const remain = [];
+        let syncedCard = false;
+        for (const item of q) {
+            try {
+                if (item.kind === 'card' || (!item.kind && item.patch)) {
+                    const r = await fetch(`${API_URL}/cards?id=eq.${item.cardId}`, { method: "PATCH", headers, body: JSON.stringify(item.patch) });
+                    if (!r.ok) throw 0;
+                    syncedCard = true;
+                }
+                if (item.kind === 'log' || (!item.kind && item.reviewRow)) {
+                    const r = await fetch(`${API_URL}/review_log`, { method: "POST", headers, body: JSON.stringify(item.reviewRow) });
+                    if (!r.ok) throw 0;
+                }
+            } catch (e) {
+                remain.push(item);
+            }
+        }
+        localStorage.setItem(PENDING_KEY, JSON.stringify(remain));
+        if (q.length && !remain.length) {
+            deferredNotified = false;
+            if (syncedCard) showToast("Synced");
+            if (currentUser && !document.getElementById('view-home').classList.contains('hidden')) fetchStats();
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Swipe to grade
+    // ------------------------------------------------------------------
+    function resetCardPos() {
+        const el = document.getElementById('flashcard-container');
+        if (!el) return;
+        el.style.transform = '';
+        el.classList.remove('cue-correct', 'cue-wrong', 'swiping');
+    }
+
+    function initSwipe() {
+        const el = document.getElementById('flashcard-container');
+        if (!el) return;
+        let startX = 0, startY = 0, startT = 0, tracking = false, activated = false, dx = 0;
+
+        el.addEventListener('pointerdown', (e) => {
+            if (isTransitioning || !currentCard) return;
+            tracking = true;
+            activated = false;   // becomes a real drag only once the finger moves sideways
+            startX = e.clientX; startY = e.clientY; startT = Date.now(); dx = 0;
+        });
+
+        el.addEventListener('pointermove', (e) => {
+            if (!tracking) return;
+            dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            if (!activated) {
+                // ignore until the gesture is clearly horizontal; leave taps and
+                // vertical scrolls alone so the native click still fires (iOS).
+                if (Math.abs(dx) < 10 || Math.abs(dx) <= Math.abs(dy)) return;
+                activated = true;
+                el.classList.add('swiping');
+                try { el.setPointerCapture(e.pointerId); } catch (err) {}
+            }
+            el.style.transform = `translateX(${dx}px) rotate(${dx / 22}deg)`;
+            el.classList.toggle('cue-correct', dx > 30);
+            el.classList.toggle('cue-wrong', dx < -30);
+        });
+
+        const end = () => {
+            if (!tracking) return;
+            tracking = false;
+            el.classList.remove('swiping');
+            if (!activated) return;   // it was a tap — onCardTap() handles the flip
+
+            suppressNextClick = true; // a drag just happened; swallow the click that follows it
+            setTimeout(() => { suppressNextClick = false; }, 400);
+
+            const dt = Date.now() - startT;
+            const w = el.offsetWidth || 320;
+            const moved = Math.abs(dx);
+            if (moved > w * 0.35 || (moved > 70 && dt < 250)) {
+                handleOutcome(dx > 0, true);   // animate the card off-screen, then grade
+            } else {
+                resetCardPos();
+            }
+        };
+        el.addEventListener('pointerup', end);
+        el.addEventListener('pointercancel', () => {
+            tracking = false;
+            el.classList.remove('swiping');
+            if (activated) resetCardPos();
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Stats + streak
+    // ------------------------------------------------------------------
+    async function fetchStats() {
+        const since = new Date(Date.now() - 90 * DAY_MS).toISOString();
+        try {
+            const res = await fetch(
+                `${API_URL}/review_log?user_id=eq.${currentUser.id}&reviewed_at=gte.${since}&select=reviewed_at&order=reviewed_at.desc`,
+                { headers }
+            );
+            statsRows = res.ok ? await res.json() : [];
+        } catch (e) {
+            statsRows = [];
+        }
+        renderStats();
+    }
+
+    function renderStats() {
+        const goal = (currentUser && currentUser.daily_goal) ? currentUser.daily_goal : 20;
+
+        const byDay = {};
+        (statsRows || []).forEach(r => {
+            const d = localDate(new Date(r.reviewed_at));
+            byDay[d] = (byDay[d] || 0) + 1;
+        });
+
+        const todayKey = localDate(new Date());
+        const todayCount = byDay[todayKey] || 0;
+
+        let streak = 0;
+        const cur = new Date();
+        if (!byDay[todayKey]) cur.setDate(cur.getDate() - 1);  // today not done yet doesn't break the streak
+        while (byDay[localDate(cur)]) { streak++; cur.setDate(cur.getDate() - 1); }
+
+        document.getElementById('streak-count').textContent = streak;
+        document.getElementById('today-count').textContent = todayCount;
+        document.getElementById('goal-val').textContent = goal;
+        document.getElementById('goal-val2').textContent = goal;
+        document.getElementById('goal-fill').style.width = Math.min(100, Math.round(todayCount / goal * 100)) + '%';
+
+        const bars = document.getElementById('mini-bars');
+        bars.textContent = '';
+        const days = [];
+        for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(d); }
+        const max = Math.max(goal, ...days.map(d => byDay[localDate(d)] || 0), 1);
+        days.forEach(d => {
+            const v = byDay[localDate(d)] || 0;
+            const col = document.createElement('div');
+            col.className = 'mini-bar';
+            col.title = localDate(d) + ': ' + v;
+            const fill = document.createElement('div');
+            fill.className = 'mini-bar-fill' + (localDate(d) === todayKey ? ' today' : '');
+            fill.style.height = Math.round(v / max * 100) + '%';
+            col.appendChild(fill);
+            bars.appendChild(col);
+        });
+    }
+
+    async function setDailyGoal() {
+        const cur = (currentUser && currentUser.daily_goal) ? currentUser.daily_goal : 20;
+        const v = prompt("Daily review goal:", cur);
+        if (v === null) return;
+        const n = Math.max(1, parseInt(v, 10) || cur);
+        try {
+            await apiFetch(`${API_URL}/app_users?id=eq.${currentUser.id}`, { method: "PATCH", headers, body: JSON.stringify({ daily_goal: n }) });
+            currentUser.daily_goal = n;
+            const store = localStorage.getItem('duocards_user') ? localStorage : sessionStorage;
+            store.setItem('duocards_user', JSON.stringify(currentUser));
+            renderStats();
+            showToast("Goal updated");
+        } catch (e) {
+            showToast("Could not save goal", true);
+        }
+    }
+</script>
+</body>
+</html>
