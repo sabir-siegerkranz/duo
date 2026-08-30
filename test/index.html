@@ -133,14 +133,50 @@
         /* streak / goal / history */
         .stats-row { display: flex; justify-content: space-between; align-items: center; }
         .streak-chip { font-weight: 700; font-size: 14px; }
-        #goal-edit { width: auto; background: none; color: var(--primary); border: none; font-size: 12px; padding: 4px; }
-        .goal-bar { height: 8px; background: #e2e8f0; border-radius: 4px; margin: 10px 0 4px; overflow: hidden; }
+        .goal-bar { height: 8px; background: #e2e8f0; border-radius: 4px; margin: 12px 0 4px; overflow: hidden; }
         .goal-fill { height: 100%; background: var(--success); width: 0%; transition: width 0.3s ease; }
+        .goal-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .goal-row-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
         .goal-label { font-size: 12px; color: #64748b; }
-        .mini-bars { display: flex; gap: 4px; align-items: flex-end; height: 44px; margin-top: 10px; }
-        .mini-bar { flex: 1; background: #f1f5f9; border-radius: 3px 3px 0 0; height: 100%; display: flex; align-items: flex-end; overflow: hidden; }
-        .mini-bar-fill { width: 100%; background: #cbd5e1; border-radius: 3px 3px 0 0; min-height: 2px; transition: height 0.3s ease; }
+        #goal-edit { width: auto; background: none; color: var(--primary); border: none; font-size: 12px; padding: 4px; }
+        #analytics-btn { width: auto; background: #eef2ff; color: var(--primary); border: none; font-size: 12px; padding: 5px 10px; border-radius: 8px; }
+
+        .profile-wrap { position: relative; }
+        .avatar {
+            width: 34px; height: 34px; border-radius: 50%; padding: 0;
+            background: var(--primary); color: #fff; font-weight: 700; font-size: 15px;
+        }
+        .profile-menu {
+            position: absolute; right: 0; top: 42px; z-index: 210; min-width: 160px;
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 8px;
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .profile-menu-name { font-weight: 700; padding: 6px 8px; font-size: 14px; }
+        .profile-menu button { background: #f1f5f9; color: #475569; width: 100%; padding: 8px; font-size: 13px; }
+
+        .mini-bars { display: flex; gap: 8px; align-items: flex-end; margin-top: 14px; }
+        .mini-col { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 42px; }
+        .mini-bar { width: 100%; height: 40px; background: #f1f5f9; border-radius: 4px 4px 0 0; display: flex; align-items: flex-end; overflow: hidden; }
+        .mini-bar-fill { width: 100%; background: #cbd5e1; border-radius: 4px 4px 0 0; min-height: 3px; transition: height 0.3s ease; }
         .mini-bar-fill.today { background: var(--primary); }
+        .mini-bar-fill.goal-met { background: var(--success); }
+        .mini-label { font-size: 10px; color: #64748b; text-align: center; line-height: 1.15; }
+        .mini-label strong { display: block; color: var(--text); font-size: 11px; }
+
+        .seg { display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 10px; margin-bottom: 12px; }
+        .seg-btn { flex: 1; background: none; color: #64748b; font-size: 13px; padding: 8px; border-radius: 8px; font-weight: 600; }
+        .seg-btn.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+        .analytics-summary { display: flex; justify-content: space-around; margin-bottom: 14px; text-align: center; }
+        .analytics-summary div span { display: block; font-size: 18px; font-weight: 700; }
+        .analytics-summary div small { font-size: 11px; color: #64748b; }
+        .analytics-chart { display: flex; gap: 6px; align-items: flex-end; overflow-x: auto; padding-bottom: 4px; }
+        .a-col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 30px; flex: 1; }
+        .a-bar { width: 100%; height: 130px; background: #f1f5f9; border-radius: 4px 4px 0 0; display: flex; align-items: flex-end; overflow: hidden; }
+        .a-bar-fill { width: 100%; background: var(--primary); border-radius: 4px 4px 0 0; min-height: 3px; }
+        .a-bar-fill.dim { background: #cbd5e1; }
+        .a-label { font-size: 9px; color: #64748b; text-align: center; white-space: nowrap; }
+        .a-val { font-size: 10px; font-weight: 700; color: var(--text); min-height: 12px; }
 
         .deck-item {
             display: flex; justify-content: space-between; align-items: center;
@@ -215,6 +251,23 @@
         </div>
     </div>
 
+    <!-- ANALYTICS MODAL -->
+    <div id="analytics-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeAnalytics()">
+        <div class="modal-card">
+            <div class="modal-head">
+                <strong>Analytics</strong>
+                <button class="modal-x" onclick="closeAnalytics()">✕</button>
+            </div>
+            <div class="seg" id="analytics-seg">
+                <button data-mode="day" class="seg-btn active" onclick="renderAnalytics('day')">Day</button>
+                <button data-mode="week" class="seg-btn" onclick="renderAnalytics('week')">Week</button>
+                <button data-mode="month" class="seg-btn" onclick="renderAnalytics('month')">Month</button>
+            </div>
+            <div id="analytics-summary" class="analytics-summary"></div>
+            <div id="analytics-chart" class="analytics-chart"></div>
+        </div>
+    </div>
+
     <!-- LOGIN VIEW -->
     <div id="view-login" class="card-box" style="text-align: center;">
         <h2 style="margin-top: 0;">Sign In</h2>
@@ -234,18 +287,25 @@
 
     <!-- HOME VIEW -->
     <div id="view-home" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
-        <div class="card-box header">
-            <div><strong>User: </strong><span id="user-display"></span></div>
-            <button style="background: none; color: #94a3b8; border: none; padding: 0; font-size: 12px; width: auto;" onclick="logout()">Logout</button>
-        </div>
-
         <div class="card-box" id="stats-box">
             <div class="stats-row">
                 <div class="streak-chip">🔥 <span id="streak-count">0</span> day streak</div>
-                <button id="goal-edit" onclick="setDailyGoal()">Goal: <span id="goal-val">20</span>/day ✎</button>
+                <div class="profile-wrap">
+                    <button id="avatar-btn" class="avatar" onclick="toggleProfileMenu(event)">?</button>
+                    <div id="profile-menu" class="profile-menu hidden">
+                        <div class="profile-menu-name" id="menu-username">User</div>
+                        <button onclick="logout()">Log out</button>
+                    </div>
+                </div>
             </div>
             <div class="goal-bar"><div class="goal-fill" id="goal-fill"></div></div>
-            <div class="goal-label"><span id="today-count">0</span> / <span id="goal-val2">20</span> reviews today</div>
+            <div class="goal-row">
+                <span class="goal-label"><span id="today-count">0</span> / <span id="goal-val2">20</span> today</span>
+                <span class="goal-row-actions">
+                    <button id="goal-edit" onclick="setDailyGoal()">Goal <span id="goal-val">20</span>/day ✎</button>
+                    <button id="analytics-btn" onclick="openAnalytics()">📊 Analytics</button>
+                </span>
+            </div>
             <div class="mini-bars" id="mini-bars"></div>
         </div>
 
@@ -503,7 +563,7 @@
         if (savedUser) {
             try {
                 currentUser = JSON.parse(savedUser);
-                document.getElementById('user-display').textContent = currentUser.username;
+                applyProfileIdentity();
                 showView('view-home');
                 fetchDecks();
                 return;
@@ -544,7 +604,7 @@
                 localStorage.removeItem('duocards_user');
             }
 
-            document.getElementById('user-display').textContent = currentUser.username;
+            applyProfileIdentity();
             showView('view-home');
 
             logActivity("login", "User logged into session");
@@ -1179,6 +1239,23 @@
         isTransitioning = false;
     }
 
+    // Replace the target German word in an example with a blank, so a card that
+    // shows the English side and asks for the German word doesn't give it away.
+    function clozeHint(hint, germanWord) {
+        if (!hint || !germanWord) return hint;
+        const core = germanWord.trim().replace(/^(der|die|das|ein|eine)\s+/i, '').trim();
+        if (core.length < 2) return hint;
+        const esc = core.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        try {
+            // core word + up to 3 inflection letters, bounded by non-letters
+            const re = new RegExp('(^|[^\\p{L}])(' + esc + '[\\p{L}]{0,3})(?![\\p{L}])', 'iu');
+            return re.test(hint) ? hint.replace(re, '$1____') : hint;
+        } catch (e) {
+            const re = new RegExp('\\b' + esc + '\\w{0,3}\\b', 'i');
+            return re.test(hint) ? hint.replace(re, '____') : hint;
+        }
+    }
+
     function renderCard(card) {
         const deck = decks.find(d => d.id == activeDeckId);
         const dir = deck ? (deck.practice_direction || 'random') : 'random';
@@ -1191,8 +1268,11 @@
         const frontText = learningFront ? card.de : card.en;
         const backText = learningFront ? card.en : card.de;
 
+        // front shows the non-German side -> blank the German word in the example
+        const frontHint = learningFront ? hint : clozeHint(hint, card.de);
+
         document.getElementById('front-text').textContent = frontText;
-        document.getElementById('front-hint').textContent = hint;
+        document.getElementById('front-hint').textContent = frontHint;
         document.getElementById('back-text').textContent = backText;
         document.getElementById('back-example').textContent = hint ? '"' + hint + '"' : '';
     }
@@ -1420,6 +1500,9 @@
         renderStats();
     }
 
+    const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
     function renderStats() {
         const goal = (currentUser && currentUser.daily_goal) ? currentUser.daily_goal : 20;
 
@@ -1429,11 +1512,12 @@
             byDay[d] = (byDay[d] || 0) + 1;
         });
 
-        const todayKey = localDate(new Date());
+        const today = new Date();
+        const todayKey = localDate(today);
         const todayCount = byDay[todayKey] || 0;
 
         let streak = 0;
-        const cur = new Date();
+        const cur = new Date(today);
         if (!byDay[todayKey]) cur.setDate(cur.getDate() - 1);  // today not done yet doesn't break the streak
         while (byDay[localDate(cur)]) { streak++; cur.setDate(cur.getDate() - 1); }
 
@@ -1443,21 +1527,159 @@
         document.getElementById('goal-val2').textContent = goal;
         document.getElementById('goal-fill').style.width = Math.min(100, Math.round(todayCount / goal * 100)) + '%';
 
+        applyProfileIdentity();
+
+        // today first (leftmost), then up to 3 previous days that HIT the goal, newest first
+        const cols = [{ date: new Date(today), count: todayCount, isToday: true }];
+        const back = new Date(today);
+        for (let i = 1, added = 0; i <= 21 && added < 3; i++) {
+            back.setDate(back.getDate() - 1);
+            const c = byDay[localDate(back)] || 0;
+            if (c >= goal) { cols.push({ date: new Date(back), count: c, isToday: false }); added++; }
+        }
+
         const bars = document.getElementById('mini-bars');
         bars.textContent = '';
-        const days = [];
-        for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(d); }
-        const max = Math.max(goal, ...days.map(d => byDay[localDate(d)] || 0), 1);
-        days.forEach(d => {
-            const v = byDay[localDate(d)] || 0;
+        const max = Math.max(goal, ...cols.map(c => c.count), 1);
+        cols.forEach(c => {
             const col = document.createElement('div');
-            col.className = 'mini-bar';
-            col.title = localDate(d) + ': ' + v;
+            col.className = 'mini-col';
+            col.title = localDate(c.date) + ': ' + c.count + ' reviews';
+            const bar = document.createElement('div');
+            bar.className = 'mini-bar';
             const fill = document.createElement('div');
-            fill.className = 'mini-bar-fill' + (localDate(d) === todayKey ? ' today' : '');
-            fill.style.height = Math.round(v / max * 100) + '%';
-            col.appendChild(fill);
+            fill.className = 'mini-bar-fill' + (c.isToday ? ' today' : (c.count >= goal ? ' goal-met' : ''));
+            fill.style.height = Math.round(c.count / max * 100) + '%';
+            bar.appendChild(fill);
+            const label = document.createElement('div');
+            label.className = 'mini-label';
+            const wd = document.createElement('strong');
+            wd.textContent = WEEKDAYS[c.date.getDay()];
+            label.appendChild(wd);
+            label.appendChild(document.createTextNode(c.date.getDate()));
+            col.appendChild(bar);
+            col.appendChild(label);
             bars.appendChild(col);
+        });
+    }
+
+    // ---- profile menu ----
+    function applyProfileIdentity() {
+        if (!currentUser) return;
+        const av = document.getElementById('avatar-btn');
+        const nm = document.getElementById('menu-username');
+        if (av) av.textContent = (currentUser.username || '?').charAt(0).toUpperCase();
+        if (nm) nm.textContent = currentUser.username || '';
+    }
+
+    function toggleProfileMenu(e) {
+        if (e) e.stopPropagation();
+        document.getElementById('profile-menu').classList.toggle('hidden');
+    }
+    document.addEventListener('click', (e) => {
+        const menu = document.getElementById('profile-menu');
+        if (!menu || menu.classList.contains('hidden')) return;
+        if (menu.contains(e.target) || e.target.id === 'avatar-btn') return;
+        menu.classList.add('hidden');
+    });
+
+    // ---- analytics ----
+    let analyticsRows = [];
+
+    function isoWeekKey(d) {
+        const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        const day = (t.getUTCDay() + 6) % 7;
+        t.setUTCDate(t.getUTCDate() - day + 3);
+        const firstThu = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
+        const week = 1 + Math.round(((t - firstThu) / 86400000 - 3 + ((firstThu.getUTCDay() + 6) % 7)) / 7);
+        return t.getUTCFullYear() + '-W' + String(week).padStart(2, '0');
+    }
+
+    async function openAnalytics() {
+        const since = new Date(Date.now() - 185 * DAY_MS).toISOString();
+        try {
+            const res = await fetch(
+                `${API_URL}/review_log?user_id=eq.${currentUser.id}&reviewed_at=gte.${since}&select=reviewed_at&order=reviewed_at.desc`,
+                { headers }
+            );
+            analyticsRows = res.ok ? await res.json() : [];
+        } catch (e) {
+            analyticsRows = [];
+        }
+        document.getElementById('analytics-modal').classList.remove('hidden');
+        renderAnalytics('day');
+    }
+    function closeAnalytics() {
+        document.getElementById('analytics-modal').classList.add('hidden');
+    }
+
+    function renderAnalytics(mode) {
+        document.querySelectorAll('#analytics-seg .seg-btn')
+            .forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+
+        const goal = (currentUser && currentUser.daily_goal) ? currentUser.daily_goal : 20;
+        const rows = analyticsRows || [];
+        const now = new Date();
+        const buckets = [];
+
+        if (mode === 'day') {
+            const map = {};
+            rows.forEach(r => { const k = localDate(new Date(r.reviewed_at)); map[k] = (map[k] || 0) + 1; });
+            for (let i = 13; i >= 0; i--) {
+                const d = new Date(now); d.setDate(d.getDate() - i);
+                buckets.push({ label: WEEKDAYS[d.getDay()], sub: String(d.getDate()), count: map[localDate(d)] || 0, target: goal });
+            }
+        } else if (mode === 'week') {
+            const map = {};
+            rows.forEach(r => { const k = isoWeekKey(new Date(r.reviewed_at)); map[k] = (map[k] || 0) + 1; });
+            for (let i = 9; i >= 0; i--) {
+                const d = new Date(now); d.setDate(d.getDate() - i * 7);
+                const k = isoWeekKey(d);
+                buckets.push({ label: 'W' + k.slice(-2), sub: '', count: map[k] || 0, target: goal * 7 });
+            }
+        } else {
+            const map = {};
+            rows.forEach(r => {
+                const dt = new Date(r.reviewed_at);
+                const k = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0');
+                map[k] = (map[k] || 0) + 1;
+            });
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+                const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+                buckets.push({ label: MONTHS[d.getMonth()], sub: '', count: map[k] || 0, target: goal * days });
+            }
+        }
+
+        const total = rows.length;
+        const daysActive = new Set(rows.map(r => localDate(new Date(r.reviewed_at)))).size;
+        const best = buckets.reduce((m, b) => Math.max(m, b.count), 0);
+
+        const summary = document.getElementById('analytics-summary');
+        summary.textContent = '';
+        [['Reviews (6mo)', total], ['Days active', daysActive], ['Best ' + mode, best]].forEach(([lab, val]) => {
+            const d = document.createElement('div');
+            const s = document.createElement('span'); s.textContent = val;
+            const sm = document.createElement('small'); sm.textContent = lab;
+            d.appendChild(s); d.appendChild(sm); summary.appendChild(d);
+        });
+
+        const chart = document.getElementById('analytics-chart');
+        chart.textContent = '';
+        const max = Math.max(1, ...buckets.map(b => b.count));
+        buckets.forEach(b => {
+            const col = document.createElement('div'); col.className = 'a-col';
+            const val = document.createElement('div'); val.className = 'a-val'; val.textContent = b.count || '';
+            const bar = document.createElement('div'); bar.className = 'a-bar';
+            const fill = document.createElement('div');
+            fill.className = 'a-bar-fill' + (b.count >= b.target ? '' : ' dim');
+            fill.style.height = Math.round(b.count / max * 100) + '%';
+            bar.appendChild(fill);
+            const lab = document.createElement('div'); lab.className = 'a-label';
+            lab.textContent = b.label + (b.sub ? ' ' + b.sub : '');
+            col.appendChild(val); col.appendChild(bar); col.appendChild(lab);
+            chart.appendChild(col);
         });
     }
 
