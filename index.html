@@ -133,14 +133,98 @@
         /* streak / goal / history */
         .stats-row { display: flex; justify-content: space-between; align-items: center; }
         .streak-chip { font-weight: 700; font-size: 14px; }
-        #goal-edit { width: auto; background: none; color: var(--primary); border: none; font-size: 12px; padding: 4px; }
-        .goal-bar { height: 8px; background: #e2e8f0; border-radius: 4px; margin: 10px 0 4px; overflow: hidden; }
+        .goal-bar { height: 8px; background: #e2e8f0; border-radius: 4px; margin: 12px 0 4px; overflow: hidden; }
         .goal-fill { height: 100%; background: var(--success); width: 0%; transition: width 0.3s ease; }
+        .goal-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .goal-row-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
         .goal-label { font-size: 12px; color: #64748b; }
-        .mini-bars { display: flex; gap: 4px; align-items: flex-end; height: 44px; margin-top: 10px; }
-        .mini-bar { flex: 1; background: #f1f5f9; border-radius: 3px 3px 0 0; height: 100%; display: flex; align-items: flex-end; overflow: hidden; }
-        .mini-bar-fill { width: 100%; background: #cbd5e1; border-radius: 3px 3px 0 0; min-height: 2px; transition: height 0.3s ease; }
-        .mini-bar-fill.today { background: var(--primary); }
+        #goal-edit { width: auto; background: none; color: var(--primary); border: none; font-size: 12px; padding: 4px; }
+        #analytics-btn { width: auto; background: #eef2ff; color: var(--primary); border: none; font-size: 12px; padding: 5px 10px; border-radius: 8px; }
+
+        .profile-wrap { position: relative; }
+        .avatar {
+            width: 34px; height: 34px; border-radius: 50%; padding: 0;
+            background: var(--primary); color: #fff; font-weight: 700; font-size: 15px;
+        }
+        .profile-menu {
+            position: absolute; right: 0; top: 42px; z-index: 210; min-width: 160px;
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 8px;
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .profile-menu-name { font-weight: 700; padding: 6px 8px; font-size: 14px; }
+        .profile-menu button { background: #f1f5f9; color: #475569; width: 100%; padding: 8px; font-size: 13px; }
+
+        /* weekly strip: current calendar week, Sun -> Sat (bars ~half height) */
+        .mini-bars { display: flex; gap: 6px; align-items: flex-end; margin-top: 14px; }
+        .mini-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 0; }
+        .mini-bar {
+            width: 100%; max-width: 40px; height: 20px; background: #eef2f7;
+            border-radius: 4px; display: flex; align-items: flex-end; overflow: hidden;
+        }
+        .mini-bar.future { background: repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9 3px,#e6ebf1 3px,#e6ebf1 6px); }
+        .mini-bar-fill { width: 100%; background: #93c5fd; border-radius: 4px; min-height: 3px; transition: height 0.5s cubic-bezier(.2,.8,.2,1); }
+        .mini-bar-fill.goal-met { background: var(--success); }
+        .mini-col.today .mini-bar { box-shadow: 0 0 0 2px var(--primary); }
+        .mini-col.today .mini-label strong { color: var(--primary); }
+        .mini-label { font-size: 10px; color: #94a3b8; text-align: center; line-height: 1.15; }
+        .mini-label strong { display: block; color: var(--text); font-size: 11px; }
+
+        @keyframes weekpulse {
+            0% { box-shadow: 0 4px 12px rgba(0,0,0,.05); }
+            40% { box-shadow: 0 0 0 3px var(--primary); }
+            100% { box-shadow: 0 4px 12px rgba(0,0,0,.05); }
+        }
+        #stats-box.weekpulse { animation: weekpulse 1.4s ease; }
+
+        /* analytics: Day / Week / Month */
+        .analytics-summary { display: flex; justify-content: space-around; margin-bottom: 14px; text-align: center; }
+        .analytics-summary div span { display: block; font-size: 18px; font-weight: 700; }
+        .analytics-summary div small { font-size: 11px; color: #64748b; }
+        .a-note { font-size: 11px; color: #94a3b8; margin-bottom: 12px; }
+
+        .seg { display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 12px; margin-bottom: 14px; }
+        .seg button { flex: 1; border: none; background: none; color: #64748b; font-size: 14px; font-weight: 600; padding: 9px; border-radius: 9px; }
+        .seg button.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+
+        /* heat scale: grey -> blue */
+        .lv0 { background: #eceef1; }
+        .lv1 { background: #cfe4fb; }
+        .lv2 { background: #94c4f5; }
+        .lv3 { background: #4a97e8; }
+        .lv4 { background: #1f6fd1; }
+
+        .mnav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .mnav button { border: none; background: #f1f5f9; color: #475569; width: 34px; height: 34px; border-radius: 9px; font-size: 16px; }
+        .mnav strong { font-size: 14px; }
+
+        /* Day: 24h histogram */
+        .hist { display: flex; align-items: flex-end; gap: 3px; height: 170px; }
+        .hcol { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+        .hbar { width: 100%; background: #4a97e8; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .4s ease; }
+        .hcol.peak .hbar { background: var(--primary); }
+        .haxis { display: flex; gap: 3px; margin-top: 4px; }
+        .haxis span { flex: 1; text-align: center; font-size: 9px; color: #94a3b8; }
+        .hval { font-size: 9px; color: #94a3b8; min-height: 11px; }
+
+        /* Week: 7 dated cells */
+        .week { display: flex; gap: 6px; }
+        .wcell { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .wsq { width: 100%; aspect-ratio: 1; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; color: #1e293b; }
+        .wcell.today .wsq { box-shadow: 0 0 0 2px var(--primary); }
+        .wcell.future .wsq { background: repeating-linear-gradient(45deg,#f4f6f9,#f4f6f9 4px,#e9edf2 4px,#e9edf2 8px); color: transparent; }
+        .wlabel { font-size: 10px; color: #94a3b8; text-align: center; line-height: 1.15; }
+        .wlabel strong { display: block; color: var(--text); font-size: 11px; }
+
+        /* Month: calendar grid */
+        .cal-head, .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 5px; }
+        .cal-head div { text-align: center; font-size: 10px; color: #94a3b8; font-weight: 700; padding-bottom: 4px; }
+        .cal-cell { aspect-ratio: 1; border-radius: 8px; display: flex; align-items: flex-start; padding: 5px; font-size: 11px; font-weight: 600; color: #1e293b; }
+        .cal-cell.blank { background: transparent; }
+        .cal-cell.today { box-shadow: 0 0 0 2px var(--primary); }
+
+        .heat-legend { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #94a3b8; margin-top: 12px; justify-content: flex-end; }
+        .heat-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 
         .deck-item {
             display: flex; justify-content: space-between; align-items: center;
@@ -215,6 +299,27 @@
         </div>
     </div>
 
+    <!-- ANALYTICS MODAL -->
+    <div id="analytics-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeAnalytics()">
+        <div class="modal-card">
+            <div class="modal-head">
+                <strong>Analytics</strong>
+                <button class="modal-x" onclick="closeAnalytics()">✕</button>
+            </div>
+            <div class="seg" id="analytics-seg">
+                <button data-v="day" class="active" onclick="setAnalyticsView('day')">Day</button>
+                <button data-v="week" onclick="setAnalyticsView('week')">Week</button>
+                <button data-v="month" onclick="setAnalyticsView('month')">Month</button>
+            </div>
+            <div id="analytics-summary" class="analytics-summary"></div>
+            <div class="a-note" id="analytics-note"></div>
+            <div id="analytics-view"></div>
+            <div class="heat-legend" id="analytics-legend">Less
+                <i class="lv0"></i><i class="lv1"></i><i class="lv2"></i><i class="lv3"></i><i class="lv4"></i>
+                More</div>
+        </div>
+    </div>
+
     <!-- LOGIN VIEW -->
     <div id="view-login" class="card-box" style="text-align: center;">
         <h2 style="margin-top: 0;">Sign In</h2>
@@ -234,18 +339,25 @@
 
     <!-- HOME VIEW -->
     <div id="view-home" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
-        <div class="card-box header">
-            <div><strong>User: </strong><span id="user-display"></span></div>
-            <button style="background: none; color: #94a3b8; border: none; padding: 0; font-size: 12px; width: auto;" onclick="logout()">Logout</button>
-        </div>
-
         <div class="card-box" id="stats-box">
             <div class="stats-row">
                 <div class="streak-chip">🔥 <span id="streak-count">0</span> day streak</div>
-                <button id="goal-edit" onclick="setDailyGoal()">Goal: <span id="goal-val">20</span>/day ✎</button>
+                <div class="profile-wrap">
+                    <button id="avatar-btn" class="avatar" onclick="toggleProfileMenu(event)">?</button>
+                    <div id="profile-menu" class="profile-menu hidden">
+                        <div class="profile-menu-name" id="menu-username">User</div>
+                        <button onclick="logout()">Log out</button>
+                    </div>
+                </div>
             </div>
             <div class="goal-bar"><div class="goal-fill" id="goal-fill"></div></div>
-            <div class="goal-label"><span id="today-count">0</span> / <span id="goal-val2">20</span> reviews today</div>
+            <div class="goal-row">
+                <span class="goal-label"><span id="today-count">0</span> / <span id="goal-val2">20</span> today</span>
+                <span class="goal-row-actions">
+                    <button id="goal-edit" onclick="setDailyGoal()">Goal <span id="goal-val">20</span>/day ✎</button>
+                    <button id="analytics-btn" onclick="openAnalytics()">📊 Analytics</button>
+                </span>
+            </div>
             <div class="mini-bars" id="mini-bars"></div>
         </div>
 
@@ -437,13 +549,13 @@
     // ------------------------------------------------------------------
     // Utilities
     // ------------------------------------------------------------------
-    function showToast(msg, isError) {
+    function showToast(msg, isError, ms) {
         const toast = document.getElementById('toast');
         toast.textContent = msg;
         toast.classList.toggle('error', !!isError);
         toast.classList.add('show');
         clearTimeout(toast._t);
-        toast._t = setTimeout(() => toast.classList.remove('show'), 2200);
+        toast._t = setTimeout(() => toast.classList.remove('show'), ms || 2200);
     }
 
     class ApiError extends Error {
@@ -503,7 +615,7 @@
         if (savedUser) {
             try {
                 currentUser = JSON.parse(savedUser);
-                document.getElementById('user-display').textContent = currentUser.username;
+                applyProfileIdentity();
                 showView('view-home');
                 fetchDecks();
                 return;
@@ -544,7 +656,7 @@
                 localStorage.removeItem('duocards_user');
             }
 
-            document.getElementById('user-display').textContent = currentUser.username;
+            applyProfileIdentity();
             showView('view-home');
 
             logActivity("login", "User logged into session");
@@ -1179,6 +1291,23 @@
         isTransitioning = false;
     }
 
+    // Replace the target German word in an example with a blank, so a card that
+    // shows the English side and asks for the German word doesn't give it away.
+    function clozeHint(hint, germanWord) {
+        if (!hint || !germanWord) return hint;
+        const core = germanWord.trim().replace(/^(der|die|das|ein|eine)\s+/i, '').trim();
+        if (core.length < 2) return hint;
+        const esc = core.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        try {
+            // core word + up to 3 inflection letters, bounded by non-letters
+            const re = new RegExp('(^|[^\\p{L}])(' + esc + '[\\p{L}]{0,3})(?![\\p{L}])', 'iu');
+            return re.test(hint) ? hint.replace(re, '$1____') : hint;
+        } catch (e) {
+            const re = new RegExp('\\b' + esc + '\\w{0,3}\\b', 'i');
+            return re.test(hint) ? hint.replace(re, '____') : hint;
+        }
+    }
+
     function renderCard(card) {
         const deck = decks.find(d => d.id == activeDeckId);
         const dir = deck ? (deck.practice_direction || 'random') : 'random';
@@ -1191,8 +1320,11 @@
         const frontText = learningFront ? card.de : card.en;
         const backText = learningFront ? card.en : card.de;
 
+        // front shows the non-German side -> blank the German word in the example
+        const frontHint = learningFront ? hint : clozeHint(hint, card.de);
+
         document.getElementById('front-text').textContent = frontText;
-        document.getElementById('front-hint').textContent = hint;
+        document.getElementById('front-hint').textContent = frontHint;
         document.getElementById('back-text').textContent = backText;
         document.getElementById('back-example').textContent = hint ? '"' + hint + '"' : '';
     }
@@ -1420,6 +1552,9 @@
         renderStats();
     }
 
+    const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
     function renderStats() {
         const goal = (currentUser && currentUser.daily_goal) ? currentUser.daily_goal : 20;
 
@@ -1429,11 +1564,12 @@
             byDay[d] = (byDay[d] || 0) + 1;
         });
 
-        const todayKey = localDate(new Date());
+        const today = new Date();
+        const todayKey = localDate(today);
         const todayCount = byDay[todayKey] || 0;
 
         let streak = 0;
-        const cur = new Date();
+        const cur = new Date(today);
         if (!byDay[todayKey]) cur.setDate(cur.getDate() - 1);  // today not done yet doesn't break the streak
         while (byDay[localDate(cur)]) { streak++; cur.setDate(cur.getDate() - 1); }
 
@@ -1443,22 +1579,304 @@
         document.getElementById('goal-val2').textContent = goal;
         document.getElementById('goal-fill').style.width = Math.min(100, Math.round(todayCount / goal * 100)) + '%';
 
+        applyProfileIdentity();
+
+        // Current calendar week: Sunday (left) .. Saturday (right). Past/today days
+        // show a bar; future days show a grey placeholder.
+        const weekStart = new Date(today);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        weekStart.setHours(0, 0, 0, 0);
+
         const bars = document.getElementById('mini-bars');
         bars.textContent = '';
-        const days = [];
-        for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(d); }
-        const max = Math.max(goal, ...days.map(d => byDay[localDate(d)] || 0), 1);
-        days.forEach(d => {
-            const v = byDay[localDate(d)] || 0;
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(weekStart);
+            d.setDate(d.getDate() + i);
+            const key = localDate(d);
+            const count = byDay[key] || 0;
+            const isToday = key === todayKey;
+            const isFuture = d.getTime() > today.getTime();
+
             const col = document.createElement('div');
-            col.className = 'mini-bar';
-            col.title = localDate(d) + ': ' + v;
-            const fill = document.createElement('div');
-            fill.className = 'mini-bar-fill' + (localDate(d) === todayKey ? ' today' : '');
-            fill.style.height = Math.round(v / max * 100) + '%';
-            col.appendChild(fill);
+            col.className = 'mini-col' + (isToday ? ' today' : '');
+            col.title = key + (isFuture ? '' : ': ' + count + ' reviews');
+
+            const bar = document.createElement('div');
+            bar.className = 'mini-bar' + (isFuture ? ' future' : '');
+            if (!isFuture) {
+                const fill = document.createElement('div');
+                fill.className = 'mini-bar-fill' + (count >= goal ? ' goal-met' : '');
+                fill.style.height = (count === 0 ? 0 : Math.max(15, Math.min(100, Math.round(count / goal * 100)))) + '%';
+                bar.appendChild(fill);
+            }
+
+            const label = document.createElement('div');
+            label.className = 'mini-label';
+            const wd = document.createElement('strong');
+            wd.textContent = WEEKDAYS[d.getDay()];
+            label.appendChild(wd);
+            label.appendChild(document.createTextNode(d.getDate()));
+
+            col.appendChild(bar);
+            col.appendChild(label);
             bars.appendChild(col);
+        }
+
+        maybeWeeklyRecap(byDay, goal, weekStart);
+    }
+
+    // On the first home render of a new calendar week, grade the week that just
+    // ended and show a mood-matched message + a pulse on the stats card.
+    function maybeWeeklyRecap(byDay, goal, thisWeekStart) {
+        let seen = null;
+        try { seen = localStorage.getItem('duocards_week_seen'); } catch (e) {}
+        const thisWeek = localDate(thisWeekStart);
+        if (seen === thisWeek) return;
+
+        if (seen) {  // skip on the very first run (no prior week to grade)
+            const prevStart = new Date(thisWeekStart);
+            prevStart.setDate(prevStart.getDate() - 7);
+            let active = 0, met = 0;
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(prevStart); d.setDate(d.getDate() + i);
+                const c = byDay[localDate(d)] || 0;
+                if (c > 0) active++;
+                if (c >= goal) met++;
+            }
+            let msg;
+            if (met >= 6 || active === 7) msg = "🔥 Perfect week — you showed up " + active + "/7 days. Unstoppable.";
+            else if (active >= 3) msg = "💪 " + active + " active days last week. Solid — now beat it.";
+            else msg = "😮‍💨 " + active + " day" + (active === 1 ? "" : "s") + " last week. Your flashcards filed a missing-person report.";
+            showToast(msg, false, 4500);
+            const box = document.getElementById('stats-box');
+            if (box) { box.classList.remove('weekpulse'); void box.offsetWidth; box.classList.add('weekpulse'); }
+        }
+        try { localStorage.setItem('duocards_week_seen', thisWeek); } catch (e) {}
+    }
+
+    // ---- profile menu ----
+    function applyProfileIdentity() {
+        if (!currentUser) return;
+        const av = document.getElementById('avatar-btn');
+        const nm = document.getElementById('menu-username');
+        if (av) av.textContent = (currentUser.username || '?').charAt(0).toUpperCase();
+        if (nm) nm.textContent = currentUser.username || '';
+    }
+
+    function toggleProfileMenu(e) {
+        if (e) e.stopPropagation();
+        document.getElementById('profile-menu').classList.toggle('hidden');
+    }
+    document.addEventListener('click', (e) => {
+        const menu = document.getElementById('profile-menu');
+        if (!menu || menu.classList.contains('hidden')) return;
+        if (menu.contains(e.target) || e.target.id === 'avatar-btn') return;
+        menu.classList.add('hidden');
+    });
+
+    // ---- analytics (Day / Week / Month) ----
+    let analyticsRows = [];
+    let analyticsView = 'day';
+    let aDayOff = 0, aWeekOff = 0, aMonthOff = 0;
+    const WD_MON = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
+    async function openAnalytics() {
+        const since = new Date(Date.now() - 185 * DAY_MS).toISOString();
+        try {
+            const res = await fetch(
+                `${API_URL}/review_log?user_id=eq.${currentUser.id}&reviewed_at=gte.${since}&select=reviewed_at&order=reviewed_at.desc`,
+                { headers }
+            );
+            analyticsRows = res.ok ? await res.json() : [];
+        } catch (e) {
+            analyticsRows = [];
+        }
+        analyticsView = 'day'; aDayOff = aWeekOff = aMonthOff = 0;
+        document.getElementById('analytics-modal').classList.remove('hidden');
+        renderAnalytics();
+    }
+    function closeAnalytics() {
+        document.getElementById('analytics-modal').classList.add('hidden');
+    }
+    function setAnalyticsView(v) {
+        analyticsView = v;
+        aDayOff = aWeekOff = aMonthOff = 0;
+        renderAnalytics();
+    }
+
+    function analyticsData() {
+        const byDay = {}, byDayHour = {};
+        (analyticsRows || []).forEach(r => {
+            const dt = new Date(r.reviewed_at);
+            const k = localDate(dt);
+            byDay[k] = (byDay[k] || 0) + 1;
+            if (!byDayHour[k]) byDayHour[k] = new Array(24).fill(0);
+            byDayHour[k][dt.getHours()]++;
         });
+        return { byDay, byDayHour };
+    }
+    function aLevel(c, max) {
+        if (!c) return 0;
+        const r = c / max;
+        return r <= 0.2 ? 1 : r <= 0.45 ? 2 : r <= 0.75 ? 3 : 4;
+    }
+    function aSummary(items) {
+        const s = document.getElementById('analytics-summary');
+        s.textContent = '';
+        items.forEach(([lab, val]) => {
+            const d = document.createElement('div');
+            const sp = document.createElement('span'); sp.textContent = val;
+            const sm = document.createElement('small'); sm.textContent = lab;
+            d.appendChild(sp); d.appendChild(sm); s.appendChild(d);
+        });
+    }
+    function aStep(kind, dir) {
+        if (kind === 'day') aDayOff = Math.min(0, aDayOff + dir);
+        else if (kind === 'week') aWeekOff = Math.min(0, aWeekOff + dir);
+        else aMonthOff = Math.min(0, aMonthOff + dir);
+        renderAnalytics();
+    }
+    function aNavBar(label, kind) {
+        const atNow = (kind === 'day' ? aDayOff : kind === 'week' ? aWeekOff : aMonthOff) >= 0;
+        const nav = document.createElement('div'); nav.className = 'mnav';
+        const prev = document.createElement('button'); prev.textContent = '‹';
+        prev.onclick = () => aStep(kind, -1);
+        const strong = document.createElement('strong'); strong.textContent = label;
+        const next = document.createElement('button'); next.textContent = '›';
+        next.disabled = atNow; next.style.opacity = atNow ? 0.35 : 1;
+        if (!atNow) next.onclick = () => aStep(kind, 1);
+        nav.appendChild(prev); nav.appendChild(strong); nav.appendChild(next);
+        return nav;
+    }
+
+    function renderAnalytics() {
+        document.querySelectorAll('#analytics-seg button')
+            .forEach(b => b.classList.toggle('active', b.dataset.v === analyticsView));
+        document.getElementById('analytics-legend').style.display = analyticsView === 'day' ? 'none' : 'flex';
+        if (analyticsView === 'day') renderADay();
+        else if (analyticsView === 'week') renderAWeek();
+        else renderAMonth();
+    }
+
+    function renderADay() {
+        const { byDayHour } = analyticsData();
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const d = new Date(today); d.setDate(d.getDate() + aDayOff);
+        const hrs = byDayHour[localDate(d)] || new Array(24).fill(0);
+        const total = hrs.reduce((a, b) => a + b, 0);
+        const max = Math.max(1, ...hrs);
+        const peak = total ? hrs.indexOf(max) : -1;
+
+        aSummary([
+            ['Reviews', total],
+            ['Peak hour', peak >= 0 ? String(peak).padStart(2, '0') + ':00' : '—'],
+            ['Active hours', hrs.filter(x => x > 0).length]
+        ]);
+        document.getElementById('analytics-note').textContent = total ? 'Reviews by hour of day' : 'No reviews on this day';
+
+        const lbl = WEEKDAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()] +
+            (aDayOff === 0 ? ' · Today' : aDayOff === -1 ? ' · Yesterday' : '');
+
+        const v = document.getElementById('analytics-view'); v.textContent = '';
+        v.appendChild(aNavBar(lbl, 'day'));
+
+        const hist = document.createElement('div'); hist.className = 'hist';
+        hrs.forEach((c, h) => {
+            const col = document.createElement('div');
+            col.className = 'hcol' + (h === peak ? ' peak' : '');
+            col.title = String(h).padStart(2, '0') + ':00 — ' + c + ' reviews';
+            const val = document.createElement('div'); val.className = 'hval'; val.textContent = (h % 3 === 0 && c) ? c : '';
+            const bar = document.createElement('div'); bar.className = 'hbar';
+            bar.style.height = Math.round(c / max * 100) + '%';
+            col.appendChild(val); col.appendChild(bar);
+            hist.appendChild(col);
+        });
+        const axis = document.createElement('div'); axis.className = 'haxis';
+        for (let h = 0; h < 24; h++) { const s = document.createElement('span'); s.textContent = h % 3 === 0 ? h : ''; axis.appendChild(s); }
+        v.appendChild(hist); v.appendChild(axis);
+    }
+
+    function renderAWeek() {
+        const { byDay } = analyticsData();
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const start = new Date(today);
+        start.setDate(start.getDate() - start.getDay() + aWeekOff * 7); // Sunday of target week
+        const end = new Date(start); end.setDate(end.getDate() + 6);
+
+        const counts = [];
+        for (let i = 0; i < 7; i++) { const dd = new Date(start); dd.setDate(dd.getDate() + i); counts.push(byDay[localDate(dd)] || 0); }
+        const total = counts.reduce((a, b) => a + b, 0);
+        const max = Math.max(1, ...counts);
+
+        aSummary([['Week total', total], ['Best day', Math.max(...counts)], ['Days active', counts.filter(c => c > 0).length + '/7']]);
+        document.getElementById('analytics-note').textContent = 'Sunday to Saturday';
+
+        const range = start.getDate() + ' ' + MONTHS[start.getMonth()] + ' – ' + end.getDate() + ' ' + MONTHS[end.getMonth()] +
+            (aWeekOff === 0 ? ' · This week' : '');
+        const v = document.getElementById('analytics-view'); v.textContent = '';
+        v.appendChild(aNavBar(range, 'week'));
+
+        const week = document.createElement('div'); week.className = 'week';
+        for (let i = 0; i < 7; i++) {
+            const dd = new Date(start); dd.setDate(dd.getDate() + i);
+            const c = counts[i];
+            const isToday = localDate(dd) === localDate(today);
+            const isFuture = dd.getTime() > today.getTime();
+            const cell = document.createElement('div');
+            cell.className = 'wcell' + (isToday ? ' today' : '') + (isFuture ? ' future' : '');
+            const sq = document.createElement('div');
+            sq.className = 'wsq lv' + (isFuture ? 0 : aLevel(c, max));
+            sq.textContent = isFuture ? '' : (c || '');
+            sq.title = localDate(dd) + ' — ' + c + ' reviews';
+            const lab = document.createElement('div'); lab.className = 'wlabel';
+            const st = document.createElement('strong'); st.textContent = WEEKDAYS[dd.getDay()];
+            lab.appendChild(st); lab.appendChild(document.createTextNode(dd.getDate()));
+            cell.appendChild(sq); cell.appendChild(lab);
+            week.appendChild(cell);
+        }
+        v.appendChild(week);
+    }
+
+    function renderAMonth() {
+        const { byDay } = analyticsData();
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const base = new Date(today.getFullYear(), today.getMonth() + aMonthOff, 1);
+        const y = base.getFullYear(), m = base.getMonth();
+        const daysInMonth = new Date(y, m + 1, 0).getDate();
+        const firstWd = (new Date(y, m, 1).getDay() + 6) % 7; // Monday=0
+
+        let total = 0, activeDays = 0, best = 0;
+        const dayCounts = {};
+        for (let dd = 1; dd <= daysInMonth; dd++) {
+            const c = byDay[localDate(new Date(y, m, dd))] || 0;
+            dayCounts[dd] = c; total += c; if (c) activeDays++; best = Math.max(best, c);
+        }
+        const max = Math.max(1, best);
+
+        aSummary([['Month total', total], ['Best day', best], ['Days active', activeDays + '/' + daysInMonth]]);
+        document.getElementById('analytics-note').textContent = 'Mon–Sun calendar';
+
+        const v = document.getElementById('analytics-view'); v.textContent = '';
+        v.appendChild(aNavBar(MONTHS[m] + ' ' + y, 'month'));
+
+        const head = document.createElement('div'); head.className = 'cal-head';
+        WD_MON.forEach(w => { const d = document.createElement('div'); d.textContent = w; head.appendChild(d); });
+        v.appendChild(head);
+
+        const grid = document.createElement('div'); grid.className = 'cal-grid';
+        for (let i = 0; i < firstWd; i++) { const b = document.createElement('div'); b.className = 'cal-cell blank'; grid.appendChild(b); }
+        for (let dd = 1; dd <= daysInMonth; dd++) {
+            const c = dayCounts[dd];
+            const dObj = new Date(y, m, dd);
+            const isToday = localDate(dObj) === localDate(today);
+            const cell = document.createElement('div');
+            cell.className = 'cal-cell lv' + aLevel(c, max) + (isToday ? ' today' : '');
+            cell.title = localDate(dObj) + ' — ' + c + ' reviews';
+            const cd = document.createElement('span'); cd.textContent = dd;
+            cell.appendChild(cd);
+            grid.appendChild(cell);
+        }
+        v.appendChild(grid);
     }
 
     async function setDailyGoal() {

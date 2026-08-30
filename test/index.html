@@ -177,22 +177,54 @@
         }
         #stats-box.weekpulse { animation: weekpulse 1.4s ease; }
 
-        /* analytics heatmap */
+        /* analytics: Day / Week / Month */
         .analytics-summary { display: flex; justify-content: space-around; margin-bottom: 14px; text-align: center; }
         .analytics-summary div span { display: block; font-size: 18px; font-weight: 700; }
         .analytics-summary div small { font-size: 11px; color: #64748b; }
-        .heatmap-wrap { overflow-x: auto; padding-bottom: 4px; }
-        .heatmap { display: flex; gap: 3px; }
-        .heat-col { display: flex; flex-direction: column; gap: 3px; }
-        .heat-cell { width: 12px; height: 12px; border-radius: 3px; background: #ebedf0; flex-shrink: 0; }
-        .heat-cell.l1 { background: #9be9a8; }
-        .heat-cell.l2 { background: #40c463; }
-        .heat-cell.l3 { background: #30a14e; }
-        .heat-cell.l4 { background: #216e39; }
-        .heat-cell.future { background: transparent; }
-        .heat-legend { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #94a3b8; margin-top: 10px; justify-content: flex-end; }
-        .heat-legend .heat-cell { width: 10px; height: 10px; }
-        .heat-caption { font-size: 11px; color: #94a3b8; margin-top: 8px; }
+        .a-note { font-size: 11px; color: #94a3b8; margin-bottom: 12px; }
+
+        .seg { display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 12px; margin-bottom: 14px; }
+        .seg button { flex: 1; border: none; background: none; color: #64748b; font-size: 14px; font-weight: 600; padding: 9px; border-radius: 9px; }
+        .seg button.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+
+        /* heat scale: grey -> blue */
+        .lv0 { background: #eceef1; }
+        .lv1 { background: #cfe4fb; }
+        .lv2 { background: #94c4f5; }
+        .lv3 { background: #4a97e8; }
+        .lv4 { background: #1f6fd1; }
+
+        .mnav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .mnav button { border: none; background: #f1f5f9; color: #475569; width: 34px; height: 34px; border-radius: 9px; font-size: 16px; }
+        .mnav strong { font-size: 14px; }
+
+        /* Day: 24h histogram */
+        .hist { display: flex; align-items: flex-end; gap: 3px; height: 170px; }
+        .hcol { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+        .hbar { width: 100%; background: #4a97e8; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .4s ease; }
+        .hcol.peak .hbar { background: var(--primary); }
+        .haxis { display: flex; gap: 3px; margin-top: 4px; }
+        .haxis span { flex: 1; text-align: center; font-size: 9px; color: #94a3b8; }
+        .hval { font-size: 9px; color: #94a3b8; min-height: 11px; }
+
+        /* Week: 7 dated cells */
+        .week { display: flex; gap: 6px; }
+        .wcell { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .wsq { width: 100%; aspect-ratio: 1; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; color: #1e293b; }
+        .wcell.today .wsq { box-shadow: 0 0 0 2px var(--primary); }
+        .wcell.future .wsq { background: repeating-linear-gradient(45deg,#f4f6f9,#f4f6f9 4px,#e9edf2 4px,#e9edf2 8px); color: transparent; }
+        .wlabel { font-size: 10px; color: #94a3b8; text-align: center; line-height: 1.15; }
+        .wlabel strong { display: block; color: var(--text); font-size: 11px; }
+
+        /* Month: calendar grid */
+        .cal-head, .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 5px; }
+        .cal-head div { text-align: center; font-size: 10px; color: #94a3b8; font-weight: 700; padding-bottom: 4px; }
+        .cal-cell { aspect-ratio: 1; border-radius: 8px; display: flex; align-items: flex-start; padding: 5px; font-size: 11px; font-weight: 600; color: #1e293b; }
+        .cal-cell.blank { background: transparent; }
+        .cal-cell.today { box-shadow: 0 0 0 2px var(--primary); }
+
+        .heat-legend { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #94a3b8; margin-top: 12px; justify-content: flex-end; }
+        .heat-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 
         .deck-item {
             display: flex; justify-content: space-between; align-items: center;
@@ -274,12 +306,17 @@
                 <strong>Analytics</strong>
                 <button class="modal-x" onclick="closeAnalytics()">✕</button>
             </div>
+            <div class="seg" id="analytics-seg">
+                <button data-v="day" class="active" onclick="setAnalyticsView('day')">Day</button>
+                <button data-v="week" onclick="setAnalyticsView('week')">Week</button>
+                <button data-v="month" onclick="setAnalyticsView('month')">Month</button>
+            </div>
             <div id="analytics-summary" class="analytics-summary"></div>
-            <div class="heatmap-wrap"><div class="heatmap" id="heatmap"></div></div>
-            <div class="heat-legend">Less
-                <span class="heat-cell"></span><span class="heat-cell l1"></span><span class="heat-cell l2"></span><span class="heat-cell l3"></span><span class="heat-cell l4"></span>
+            <div class="a-note" id="analytics-note"></div>
+            <div id="analytics-view"></div>
+            <div class="heat-legend" id="analytics-legend">Less
+                <i class="lv0"></i><i class="lv1"></i><i class="lv2"></i><i class="lv3"></i><i class="lv4"></i>
                 More</div>
-            <div class="heat-caption">Last 26 weeks · each square is one day</div>
         </div>
     </div>
 
@@ -1637,8 +1674,11 @@
         menu.classList.add('hidden');
     });
 
-    // ---- analytics ----
+    // ---- analytics (Day / Week / Month) ----
     let analyticsRows = [];
+    let analyticsView = 'day';
+    let aDayOff = 0, aWeekOff = 0, aMonthOff = 0;
+    const WD_MON = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
     async function openAnalytics() {
         const since = new Date(Date.now() - 185 * DAY_MS).toISOString();
@@ -1651,57 +1691,192 @@
         } catch (e) {
             analyticsRows = [];
         }
+        analyticsView = 'day'; aDayOff = aWeekOff = aMonthOff = 0;
         document.getElementById('analytics-modal').classList.remove('hidden');
         renderAnalytics();
     }
     function closeAnalytics() {
         document.getElementById('analytics-modal').classList.add('hidden');
     }
+    function setAnalyticsView(v) {
+        analyticsView = v;
+        aDayOff = aWeekOff = aMonthOff = 0;
+        renderAnalytics();
+    }
 
-    // GitHub-style contribution heatmap: columns = weeks (Sun..Sat down each column),
-    // 26 weeks, colour intensity = reviews that day.
-    function renderAnalytics() {
-        const rows = analyticsRows || [];
-        const byDay = {};
-        rows.forEach(r => { const k = localDate(new Date(r.reviewed_at)); byDay[k] = (byDay[k] || 0) + 1; });
-
-        const total = rows.length;
-        const active = Object.keys(byDay).length;
-        const best = Object.values(byDay).reduce((m, v) => Math.max(m, v), 0);
-
-        const summary = document.getElementById('analytics-summary');
-        summary.textContent = '';
-        [['Reviews (6mo)', total], ['Days active', active], ['Best day', best]].forEach(([lab, val]) => {
-            const d = document.createElement('div');
-            const s = document.createElement('span'); s.textContent = val;
-            const sm = document.createElement('small'); sm.textContent = lab;
-            d.appendChild(s); d.appendChild(sm); summary.appendChild(d);
+    function analyticsData() {
+        const byDay = {}, byDayHour = {};
+        (analyticsRows || []).forEach(r => {
+            const dt = new Date(r.reviewed_at);
+            const k = localDate(dt);
+            byDay[k] = (byDay[k] || 0) + 1;
+            if (!byDayHour[k]) byDayHour[k] = new Array(24).fill(0);
+            byDayHour[k][dt.getHours()]++;
         });
+        return { byDay, byDayHour };
+    }
+    function aLevel(c, max) {
+        if (!c) return 0;
+        const r = c / max;
+        return r <= 0.2 ? 1 : r <= 0.45 ? 2 : r <= 0.75 ? 3 : 4;
+    }
+    function aSummary(items) {
+        const s = document.getElementById('analytics-summary');
+        s.textContent = '';
+        items.forEach(([lab, val]) => {
+            const d = document.createElement('div');
+            const sp = document.createElement('span'); sp.textContent = val;
+            const sm = document.createElement('small'); sm.textContent = lab;
+            d.appendChild(sp); d.appendChild(sm); s.appendChild(d);
+        });
+    }
+    function aStep(kind, dir) {
+        if (kind === 'day') aDayOff = Math.min(0, aDayOff + dir);
+        else if (kind === 'week') aWeekOff = Math.min(0, aWeekOff + dir);
+        else aMonthOff = Math.min(0, aMonthOff + dir);
+        renderAnalytics();
+    }
+    function aNavBar(label, kind) {
+        const atNow = (kind === 'day' ? aDayOff : kind === 'week' ? aWeekOff : aMonthOff) >= 0;
+        const nav = document.createElement('div'); nav.className = 'mnav';
+        const prev = document.createElement('button'); prev.textContent = '‹';
+        prev.onclick = () => aStep(kind, -1);
+        const strong = document.createElement('strong'); strong.textContent = label;
+        const next = document.createElement('button'); next.textContent = '›';
+        next.disabled = atNow; next.style.opacity = atNow ? 0.35 : 1;
+        if (!atNow) next.onclick = () => aStep(kind, 1);
+        nav.appendChild(prev); nav.appendChild(strong); nav.appendChild(next);
+        return nav;
+    }
 
-        const WEEKS = 26;
+    function renderAnalytics() {
+        document.querySelectorAll('#analytics-seg button')
+            .forEach(b => b.classList.toggle('active', b.dataset.v === analyticsView));
+        document.getElementById('analytics-legend').style.display = analyticsView === 'day' ? 'none' : 'flex';
+        if (analyticsView === 'day') renderADay();
+        else if (analyticsView === 'week') renderAWeek();
+        else renderAMonth();
+    }
+
+    function renderADay() {
+        const { byDayHour } = analyticsData();
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const d = new Date(today); d.setDate(d.getDate() + aDayOff);
+        const hrs = byDayHour[localDate(d)] || new Array(24).fill(0);
+        const total = hrs.reduce((a, b) => a + b, 0);
+        const max = Math.max(1, ...hrs);
+        const peak = total ? hrs.indexOf(max) : -1;
+
+        aSummary([
+            ['Reviews', total],
+            ['Peak hour', peak >= 0 ? String(peak).padStart(2, '0') + ':00' : '—'],
+            ['Active hours', hrs.filter(x => x > 0).length]
+        ]);
+        document.getElementById('analytics-note').textContent = total ? 'Reviews by hour of day' : 'No reviews on this day';
+
+        const lbl = WEEKDAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()] +
+            (aDayOff === 0 ? ' · Today' : aDayOff === -1 ? ' · Yesterday' : '');
+
+        const v = document.getElementById('analytics-view'); v.textContent = '';
+        v.appendChild(aNavBar(lbl, 'day'));
+
+        const hist = document.createElement('div'); hist.className = 'hist';
+        hrs.forEach((c, h) => {
+            const col = document.createElement('div');
+            col.className = 'hcol' + (h === peak ? ' peak' : '');
+            col.title = String(h).padStart(2, '0') + ':00 — ' + c + ' reviews';
+            const val = document.createElement('div'); val.className = 'hval'; val.textContent = (h % 3 === 0 && c) ? c : '';
+            const bar = document.createElement('div'); bar.className = 'hbar';
+            bar.style.height = Math.round(c / max * 100) + '%';
+            col.appendChild(val); col.appendChild(bar);
+            hist.appendChild(col);
+        });
+        const axis = document.createElement('div'); axis.className = 'haxis';
+        for (let h = 0; h < 24; h++) { const s = document.createElement('span'); s.textContent = h % 3 === 0 ? h : ''; axis.appendChild(s); }
+        v.appendChild(hist); v.appendChild(axis);
+    }
+
+    function renderAWeek() {
+        const { byDay } = analyticsData();
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const start = new Date(today);
-        start.setDate(start.getDate() - start.getDay() - (WEEKS - 1) * 7); // Sunday, WEEKS ago
-        const max = Math.max(1, best);
-        const level = (c) => c === 0 ? 0 : c / max <= 0.25 ? 1 : c / max <= 0.5 ? 2 : c / max <= 0.75 ? 3 : 4;
+        start.setDate(start.getDate() - start.getDay() + aWeekOff * 7); // Sunday of target week
+        const end = new Date(start); end.setDate(end.getDate() + 6);
 
-        const hm = document.getElementById('heatmap');
-        hm.textContent = '';
-        for (let w = 0; w < WEEKS; w++) {
-            const col = document.createElement('div');
-            col.className = 'heat-col';
-            for (let dRow = 0; dRow < 7; dRow++) {
-                const d = new Date(start);
-                d.setDate(d.getDate() + w * 7 + dRow);
-                const future = d.getTime() > today.getTime();
-                const c = byDay[localDate(d)] || 0;
-                const cell = document.createElement('div');
-                cell.className = 'heat-cell' + (future ? ' future' : (c ? ' l' + level(c) : ''));
-                if (!future) cell.title = localDate(d) + ': ' + c + ' review' + (c === 1 ? '' : 's');
-                col.appendChild(cell);
-            }
-            hm.appendChild(col);
+        const counts = [];
+        for (let i = 0; i < 7; i++) { const dd = new Date(start); dd.setDate(dd.getDate() + i); counts.push(byDay[localDate(dd)] || 0); }
+        const total = counts.reduce((a, b) => a + b, 0);
+        const max = Math.max(1, ...counts);
+
+        aSummary([['Week total', total], ['Best day', Math.max(...counts)], ['Days active', counts.filter(c => c > 0).length + '/7']]);
+        document.getElementById('analytics-note').textContent = 'Sunday to Saturday';
+
+        const range = start.getDate() + ' ' + MONTHS[start.getMonth()] + ' – ' + end.getDate() + ' ' + MONTHS[end.getMonth()] +
+            (aWeekOff === 0 ? ' · This week' : '');
+        const v = document.getElementById('analytics-view'); v.textContent = '';
+        v.appendChild(aNavBar(range, 'week'));
+
+        const week = document.createElement('div'); week.className = 'week';
+        for (let i = 0; i < 7; i++) {
+            const dd = new Date(start); dd.setDate(dd.getDate() + i);
+            const c = counts[i];
+            const isToday = localDate(dd) === localDate(today);
+            const isFuture = dd.getTime() > today.getTime();
+            const cell = document.createElement('div');
+            cell.className = 'wcell' + (isToday ? ' today' : '') + (isFuture ? ' future' : '');
+            const sq = document.createElement('div');
+            sq.className = 'wsq lv' + (isFuture ? 0 : aLevel(c, max));
+            sq.textContent = isFuture ? '' : (c || '');
+            sq.title = localDate(dd) + ' — ' + c + ' reviews';
+            const lab = document.createElement('div'); lab.className = 'wlabel';
+            const st = document.createElement('strong'); st.textContent = WEEKDAYS[dd.getDay()];
+            lab.appendChild(st); lab.appendChild(document.createTextNode(dd.getDate()));
+            cell.appendChild(sq); cell.appendChild(lab);
+            week.appendChild(cell);
         }
+        v.appendChild(week);
+    }
+
+    function renderAMonth() {
+        const { byDay } = analyticsData();
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const base = new Date(today.getFullYear(), today.getMonth() + aMonthOff, 1);
+        const y = base.getFullYear(), m = base.getMonth();
+        const daysInMonth = new Date(y, m + 1, 0).getDate();
+        const firstWd = (new Date(y, m, 1).getDay() + 6) % 7; // Monday=0
+
+        let total = 0, activeDays = 0, best = 0;
+        const dayCounts = {};
+        for (let dd = 1; dd <= daysInMonth; dd++) {
+            const c = byDay[localDate(new Date(y, m, dd))] || 0;
+            dayCounts[dd] = c; total += c; if (c) activeDays++; best = Math.max(best, c);
+        }
+        const max = Math.max(1, best);
+
+        aSummary([['Month total', total], ['Best day', best], ['Days active', activeDays + '/' + daysInMonth]]);
+        document.getElementById('analytics-note').textContent = 'Mon–Sun calendar';
+
+        const v = document.getElementById('analytics-view'); v.textContent = '';
+        v.appendChild(aNavBar(MONTHS[m] + ' ' + y, 'month'));
+
+        const head = document.createElement('div'); head.className = 'cal-head';
+        WD_MON.forEach(w => { const d = document.createElement('div'); d.textContent = w; head.appendChild(d); });
+        v.appendChild(head);
+
+        const grid = document.createElement('div'); grid.className = 'cal-grid';
+        for (let i = 0; i < firstWd; i++) { const b = document.createElement('div'); b.className = 'cal-cell blank'; grid.appendChild(b); }
+        for (let dd = 1; dd <= daysInMonth; dd++) {
+            const c = dayCounts[dd];
+            const dObj = new Date(y, m, dd);
+            const isToday = localDate(dObj) === localDate(today);
+            const cell = document.createElement('div');
+            cell.className = 'cal-cell lv' + aLevel(c, max) + (isToday ? ' today' : '');
+            cell.title = localDate(dObj) + ' — ' + c + ' reviews';
+            const cd = document.createElement('span'); cd.textContent = dd;
+            cell.appendChild(cd);
+            grid.appendChild(cell);
+        }
+        v.appendChild(grid);
     }
 
     async function setDailyGoal() {
