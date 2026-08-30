@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekly recap — Solid week</title>
+<style>
+  :root { --text:#2f3542; --success:#2ed573; --primary:#00a8ff; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:#f4f6f9; color:var(--text); min-height:100vh;
+    display:flex; align-items:center; justify-content:center; padding:16px; overflow:hidden;
+  }
+  body.perfect { --accent:#f59e0b; --accent2:#2ed573; }
+  body.solid   { --accent:#00a8ff; --accent2:#60a5fa; }
+  body.rough   { --accent:#94a3b8; --accent2:#cbd5e1; }
+
+  .stage { width:100%; max-width:440px; display:flex; flex-direction:column; gap:14px; position:relative; z-index:2; }
+  .card {
+    background:#fff; border-radius:20px; padding:28px 20px 32px; text-align:center;
+    box-shadow:0 8px 30px rgba(0,0,0,.06);
+  }
+  .card.glowWarm { animation:glowWarm 1.6s ease; }
+  .card.glowCool { animation:glowCool 1.6s ease; }
+  .card.blink   { animation:blinkDim 1.3s ease; }
+
+  .strip { display:flex; gap:6px; align-items:flex-end; margin-bottom:24px; }
+  .day { flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .bar { width:100%; max-width:40px; height:44px; background:#eef2f7; border-radius:5px; display:flex; align-items:flex-end; overflow:hidden; }
+  .fill { width:100%; height:0; border-radius:5px; transition:height .55s cubic-bezier(.2,.8,.2,1); }
+  .fill.met  { background:var(--accent2); }
+  .fill.part { background:#cbd5e1; }
+  .day.today .bar { box-shadow:0 0 0 2px var(--primary); }
+  .dlabel { font-size:10px; color:#94a3b8; }
+  .dlabel strong { display:block; color:var(--text); font-size:11px; }
+
+  .emoji { font-size:64px; line-height:1; opacity:0; }
+  .emoji.in { animation:pop .55s ease both; }
+  .headline {
+    font-size:26px; font-weight:800; letter-spacing:.5px; margin-top:14px; opacity:0; color:var(--text);
+  }
+  .headline.perfect { animation:bounceIn .5s ease both, shake .42s ease .5s; }
+  .headline.solid   { animation:riseIn .5s ease both; }
+  .headline.rough   { animation:wobbleIn .65s ease both; }
+  .sub { font-size:14px; color:#64748b; margin-top:10px; opacity:0; max-width:300px; margin-left:auto; margin-right:auto; }
+  .sub.in { animation:riseIn .5s ease both; }
+  .aside { font-size:13px; color:#94a3b8; margin-top:8px; opacity:0; }
+  .aside.in { animation:riseIn .6s ease both; }
+
+  #replay {
+    align-self:center; background:var(--accent); color:#fff; border:none; font-weight:700;
+    padding:12px 22px; border-radius:12px; font-size:15px; cursor:pointer;
+  }
+  #replay:active { transform:scale(.97); }
+
+  .particles { position:fixed; inset:0; pointer-events:none; z-index:1; overflow:hidden; }
+  .particles span { position:absolute; font-size:22px; will-change:transform,opacity; }
+
+  @keyframes pop { 0%{transform:scale(0) rotate(-20deg);opacity:0} 60%{transform:scale(1.25) rotate(8deg);opacity:1} 100%{transform:scale(1) rotate(0);opacity:1} }
+  @keyframes riseIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes bounceIn { 0%{opacity:0;transform:scale(.6)} 55%{opacity:1;transform:scale(1.15)} 75%{transform:scale(.96)} 100%{transform:scale(1)} }
+  @keyframes wobbleIn { 0%{opacity:0;transform:translateY(10px) rotate(-2deg)} 60%{opacity:1;transform:translateY(0) rotate(1.6deg)} 80%{transform:rotate(-1deg)} 100%{transform:rotate(0)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-4px)} 40%{transform:translateX(4px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
+  @keyframes glowWarm { 0%,100%{box-shadow:0 8px 30px rgba(245,158,11,0)} 30%{box-shadow:0 0 0 6px rgba(245,158,11,.25),0 12px 60px rgba(245,158,11,.4)} }
+  @keyframes glowCool { 0%,100%{box-shadow:0 8px 30px rgba(0,168,255,0)} 30%{box-shadow:0 0 0 6px rgba(0,168,255,.2),0 12px 60px rgba(0,168,255,.32)} }
+  @keyframes blinkDim { 0%,100%{opacity:1} 45%{opacity:.55} }
+  @keyframes pBurst { to { transform:translate(var(--dx),var(--dy)) rotate(var(--rot)); opacity:0; } }
+  @keyframes pFloat { to { transform:translate(var(--dx),-140px) rotate(var(--rot)); opacity:0; } }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="card" id="card">
+    <div class="strip" id="strip"></div>
+    <div class="emoji" id="emoji"></div>
+    <div class="headline" id="headline"></div>
+    <div class="sub" id="sub"></div>
+    <div class="aside" id="aside"></div>
+  </div>
+  <button id="replay">▶ Replay</button>
+</div>
+<div class="particles" id="particles"></div>
+
+<script>
+  // ---- mood config (only this block differs between anim1 / anim2 / anim3) ----
+  const CFG = {
+    mood: "solid",
+    days: [1, 0.5, 1, 0, 1, 0.5, 0],
+    todayIndex: 5,
+    emoji: "💪",
+    headline: "SOLID WEEK",
+    sub: "4 active days. Momentum is momentum — build on it next week.",
+    aside: "",
+    particleChars: ["⬆️", "👏", "➕", "✨"],
+    particleMode: "float",
+    glowClass: "glowCool"
+  };
+
+  const WD = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  const $ = id => document.getElementById(id);
+  document.body.classList.add(CFG.mood);
+
+  function buildStrip() {
+    const strip = $('strip');
+    strip.textContent = '';
+    const base = new Date();
+    base.setDate(base.getDate() - base.getDay()); // Sunday
+    CFG.days.forEach((v, i) => {
+      const d = new Date(base); d.setDate(d.getDate() + i);
+      const day = document.createElement('div');
+      day.className = 'day' + (i === CFG.todayIndex ? ' today' : '');
+      const bar = document.createElement('div'); bar.className = 'bar';
+      const fill = document.createElement('div');
+      fill.className = 'fill ' + (v >= 1 ? 'met' : v > 0 ? 'part' : '');
+      fill.dataset.target = v >= 1 ? 100 : v > 0 ? 45 : 0;
+      bar.appendChild(fill);
+      const lab = document.createElement('div'); lab.className = 'dlabel';
+      const s = document.createElement('strong'); s.textContent = WD[i];
+      lab.appendChild(s); lab.appendChild(document.createTextNode(d.getDate()));
+      day.appendChild(bar); day.appendChild(lab);
+      strip.appendChild(day);
+    });
+  }
+
+  function spawnParticles() {
+    const layer = $('particles');
+    layer.textContent = '';
+    const mode = CFG.particleMode;
+    const n = mode === 'burst' ? 26 : mode === 'float' ? 16 : 4;
+    const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+    for (let i = 0; i < n; i++) {
+      const s = document.createElement('span');
+      s.textContent = CFG.particleChars[i % CFG.particleChars.length];
+      if (mode === 'burst') {
+        const ang = Math.random() * Math.PI * 2;
+        const dist = 120 + Math.random() * 260;
+        s.style.left = cx + 'px'; s.style.top = cy + 'px';
+        s.style.setProperty('--dx', Math.cos(ang) * dist + 'px');
+        s.style.setProperty('--dy', (Math.sin(ang) * dist + 220) + 'px');
+        s.style.setProperty('--rot', (Math.random() * 720 - 360) + 'deg');
+        s.style.animation = `pBurst ${1 + Math.random()}s cubic-bezier(.2,.6,.3,1) ${Math.random() * .15}s forwards`;
+      } else if (mode === 'float') {
+        s.style.left = (10 + Math.random() * 80) + 'vw';
+        s.style.top = '85vh';
+        s.style.setProperty('--dx', (Math.random() * 60 - 30) + 'px');
+        s.style.setProperty('--rot', (Math.random() * 40 - 20) + 'deg');
+        s.style.opacity = .9;
+        s.style.animation = `pFloat ${1.8 + Math.random() * 1.2}s ease-out ${Math.random() * .6}s forwards`;
+      } else {
+        s.style.left = (35 + Math.random() * 30) + 'vw';
+        s.style.top = '70vh';
+        s.style.fontSize = '18px';
+        s.style.setProperty('--dx', (Math.random() * 40 - 20) + 'px');
+        s.style.setProperty('--rot', '10deg');
+        s.style.opacity = .7;
+        s.style.animation = `pFloat ${3 + Math.random()}s ease-out forwards`;
+      }
+      layer.appendChild(s);
+    }
+  }
+
+  let timers = [];
+  function run() {
+    timers.forEach(clearTimeout); timers = [];
+    buildStrip();
+    const card = $('card'), emoji = $('emoji'), hl = $('headline'), sub = $('sub'), aside = $('aside');
+    card.className = 'card';
+    emoji.className = 'emoji'; emoji.textContent = CFG.emoji;
+    hl.className = 'headline'; hl.textContent = CFG.headline;
+    sub.className = 'sub'; sub.textContent = CFG.sub;
+    aside.className = 'aside'; aside.textContent = CFG.aside || '';
+
+    // staggered bar fills
+    timers.push(setTimeout(() => {
+      document.querySelectorAll('.fill').forEach((f, i) => {
+        f.style.transitionDelay = (i * 70) + 'ms';
+        f.style.height = f.dataset.target + '%';
+      });
+    }, 120));
+
+    timers.push(setTimeout(() => emoji.classList.add('in'), 850));
+    timers.push(setTimeout(() => hl.classList.add(CFG.mood), 1150));
+    timers.push(setTimeout(() => sub.classList.add('in'), 1550));
+    timers.push(setTimeout(() => {
+      if (CFG.aside) aside.classList.add('in');
+      card.classList.add(CFG.glowClass);
+      spawnParticles();
+    }, 1650));
+  }
+
+  $('replay').addEventListener('click', run);
+  run();
+</script>
+</body>
+</html>
