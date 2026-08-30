@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analytics preview</title>
+<style>
+  :root { --text:#2f3542; --primary:#00a8ff; --muted:#94a3b8; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:#f4f6f9; color:var(--text); padding:16px;
+    display:flex; justify-content:center;
+  }
+  .wrap { width:100%; max-width:440px; background:#fff; border-radius:20px; padding:18px; box-shadow:0 8px 30px rgba(0,0,0,.06); }
+  .head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .head strong { font-size:18px; }
+  .note { font-size:11px; color:var(--muted); margin-bottom:14px; }
+
+  .seg { display:flex; gap:4px; background:#f1f5f9; padding:4px; border-radius:12px; margin-bottom:16px; }
+  .seg button { flex:1; border:none; background:none; color:#64748b; font-size:14px; font-weight:600; padding:9px; border-radius:9px; }
+  .seg button.active { background:#fff; color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.12); }
+
+  .summary { display:flex; justify-content:space-around; text-align:center; margin-bottom:16px; }
+  .summary div span { display:block; font-size:19px; font-weight:800; }
+  .summary div small { font-size:11px; color:var(--muted); }
+
+  /* heat scale: grey -> blue */
+  .lv0 { background:#eceef1; }
+  .lv1 { background:#cfe4fb; }
+  .lv2 { background:#94c4f5; }
+  .lv3 { background:#4a97e8; }
+  .lv4 { background:#1f6fd1; }
+
+  /* DAY: 24h histogram */
+  .hist { display:flex; align-items:flex-end; gap:3px; height:170px; }
+  .hcol { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; justify-content:flex-end; }
+  .hbar { width:100%; background:#4a97e8; border-radius:3px 3px 0 0; min-height:2px; transition:height .4s ease; }
+  .hcol.peak .hbar { background:var(--primary); }
+  .haxis { display:flex; gap:3px; margin-top:4px; }
+  .haxis span { flex:1; text-align:center; font-size:9px; color:var(--muted); }
+  .hval { font-size:9px; color:var(--muted); min-height:11px; }
+
+  /* WEEK: 7 dated cells */
+  .week { display:flex; gap:6px; }
+  .wcell { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .wsq {
+    width:100%; aspect-ratio:1; border-radius:10px; display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:15px; color:#1e293b;
+  }
+  .wcell.today .wsq { box-shadow:0 0 0 2px var(--primary); }
+  .wcell.future .wsq { background:repeating-linear-gradient(45deg,#f4f6f9,#f4f6f9 4px,#e9edf2 4px,#e9edf2 8px); color:transparent; }
+  .wlabel { font-size:10px; color:var(--muted); text-align:center; line-height:1.15; }
+  .wlabel strong { display:block; color:var(--text); font-size:11px; }
+
+  /* MONTH: calendar grid */
+  .mnav { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .mnav button { border:none; background:#f1f5f9; color:#475569; width:34px; height:34px; border-radius:9px; font-size:16px; }
+  .mnav strong { font-size:15px; }
+  .cal-head, .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }
+  .cal-head div { text-align:center; font-size:10px; color:var(--muted); font-weight:700; padding-bottom:4px; }
+  .cal-cell {
+    aspect-ratio:1; border-radius:8px; position:relative; display:flex; align-items:flex-start; justify-content:flex-start;
+    padding:5px; font-size:11px; font-weight:600; color:#1e293b;
+  }
+  .cal-cell.blank { background:transparent; }
+  .cal-cell.today { box-shadow:0 0 0 2px var(--primary); }
+  .cal-cell .cd { position:relative; z-index:1; }
+
+  .legend { display:flex; align-items:center; justify-content:flex-end; gap:4px; font-size:10px; color:var(--muted); margin-top:12px; }
+  .legend i { width:12px; height:12px; border-radius:3px; display:inline-block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><strong>Analytics</strong><span style="font-size:11px;color:var(--muted)">sample data</span></div>
+  <div class="seg" id="seg">
+    <button data-v="day" class="active">Day</button>
+    <button data-v="week">Week</button>
+    <button data-v="month">Month</button>
+  </div>
+  <div class="summary" id="summary"></div>
+  <div class="note" id="note"></div>
+  <div id="view"></div>
+  <div class="legend">Less
+    <i class="lv0"></i><i class="lv1"></i><i class="lv2"></i><i class="lv3"></i><i class="lv4"></i>
+    More</div>
+</div>
+
+<script>
+  const WD_SUN = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  const WD_MON = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const key = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+
+  // ---- fake data: ~110 days of reviews with a daily rhythm ----
+  const byDay = {};          // 'yyyy-mm-dd' -> count
+  const byHour = new Array(24).fill(0);
+  (function seed(){
+    const today = new Date(); today.setHours(0,0,0,0);
+    for (let i = 0; i < 110; i++) {
+      const d = new Date(today); d.setDate(d.getDate() - i);
+      const wd = d.getDay();
+      // skip ~30% of days, weekends a bit lighter
+      if (Math.random() < (wd===0||wd===6 ? 0.45 : 0.22)) continue;
+      const n = 8 + Math.floor(Math.random() * (wd===0||wd===6 ? 30 : 55));
+      byDay[key(d)] = n;
+      for (let r = 0; r < n; r++) {
+        // rhythm: morning (7-9), lunch (12-13), evening (19-23)
+        const bucket = Math.random();
+        let h;
+        if (bucket < 0.3) h = 7 + Math.floor(Math.random()*3);
+        else if (bucket < 0.45) h = 12 + Math.floor(Math.random()*2);
+        else if (bucket < 0.9) h = 19 + Math.floor(Math.random()*5);
+        else h = Math.floor(Math.random()*24);
+        byHour[h % 24]++;
+      }
+    }
+  })();
+
+  const level = (c, max) => {
+    if (!c) return 0;
+    const r = c / max;
+    return r <= 0.2 ? 1 : r <= 0.45 ? 2 : r <= 0.75 ? 3 : 4;
+  };
+
+  const $ = id => document.getElementById(id);
+  let view = 'day';
+  let monthOffset = 0;
+
+  function setSummary(items) {
+    $('summary').innerHTML = '';
+    items.forEach(([lab, val]) => {
+      const d = document.createElement('div');
+      d.innerHTML = '<span>'+val+'</span><small>'+lab+'</small>';
+      $('summary').appendChild(d);
+    });
+  }
+
+  function renderDay() {
+    monthOffset = 0;
+    const total = byHour.reduce((a,b)=>a+b,0);
+    const max = Math.max(1, ...byHour);
+    const peak = byHour.indexOf(max);
+    setSummary([['Reviews (110d)', total], ['Peak hour', String(peak).padStart(2,'0')+':00'], ['Active hours', byHour.filter(x=>x>0).length]]);
+    $('note').textContent = 'When you study — reviews per hour of day, last 110 days';
+
+    const hist = document.createElement('div'); hist.className = 'hist';
+    byHour.forEach((c, h) => {
+      const col = document.createElement('div');
+      col.className = 'hcol' + (h === peak ? ' peak' : '');
+      col.title = String(h).padStart(2,'0')+':00 — '+c+' reviews';
+      const val = document.createElement('div'); val.className = 'hval'; val.textContent = (h % 3 === 0 && c) ? c : '';
+      const bar = document.createElement('div'); bar.className = 'hbar';
+      bar.style.height = Math.round(c / max * 100) + '%';
+      col.appendChild(val); col.appendChild(bar);
+      hist.appendChild(col);
+    });
+    const axis = document.createElement('div'); axis.className = 'haxis';
+    for (let h = 0; h < 24; h++) { const s = document.createElement('span'); s.textContent = h % 3 === 0 ? h : ''; axis.appendChild(s); }
+
+    const v = $('view'); v.innerHTML = ''; v.appendChild(hist); v.appendChild(axis);
+  }
+
+  function renderWeek() {
+    monthOffset = 0;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const start = new Date(today); start.setDate(start.getDate() - start.getDay()); // Sunday
+    const counts = [];
+    for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(d.getDate()+i); counts.push(byDay[key(d)] || 0); }
+    const wkTotal = counts.reduce((a,b)=>a+b,0);
+    const max = Math.max(1, ...counts);
+    setSummary([['This week', wkTotal], ['Best day', Math.max(...counts)], ['Days active', counts.filter(c=>c>0).length + '/7']]);
+    $('note').textContent = 'Current week — Sunday to Saturday';
+
+    const week = document.createElement('div'); week.className = 'week';
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start); d.setDate(d.getDate()+i);
+      const c = counts[i];
+      const isToday = key(d) === key(today);
+      const isFuture = d.getTime() > today.getTime();
+      const cell = document.createElement('div');
+      cell.className = 'wcell' + (isToday ? ' today' : '') + (isFuture ? ' future' : '');
+      const sq = document.createElement('div');
+      sq.className = 'wsq lv' + (isFuture ? 0 : level(c, max));
+      sq.textContent = isFuture ? '' : (c || '');
+      sq.title = key(d) + ' — ' + c + ' reviews';
+      const lab = document.createElement('div'); lab.className = 'wlabel';
+      lab.innerHTML = '<strong>' + WD_SUN[d.getDay()] + '</strong>' + d.getDate();
+      cell.appendChild(sq); cell.appendChild(lab);
+      week.appendChild(cell);
+    }
+    $('view').innerHTML = ''; $('view').appendChild(week);
+  }
+
+  function renderMonth() {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const base = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+    const y = base.getFullYear(), m = base.getMonth();
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const firstWd = (new Date(y, m, 1).getDay() + 6) % 7; // Monday=0
+
+    let monthTotal = 0, activeDays = 0, bestDay = 0;
+    const dayCounts = {};
+    for (let dd = 1; dd <= daysInMonth; dd++) {
+      const c = byDay[key(new Date(y, m, dd))] || 0;
+      dayCounts[dd] = c; monthTotal += c; if (c) activeDays++; bestDay = Math.max(bestDay, c);
+    }
+    const max = Math.max(1, bestDay);
+    setSummary([[MONTHS[m] + ' total', monthTotal], ['Best day', bestDay], ['Days active', activeDays + '/' + daysInMonth]]);
+    $('note').textContent = 'Tap ‹ › to change month';
+
+    const nav = document.createElement('div'); nav.className = 'mnav';
+    nav.innerHTML = '<button data-d="-1">‹</button><strong>' + MONTHS[m] + ' ' + y + '</strong><button data-d="1">›</button>';
+
+    const head = document.createElement('div'); head.className = 'cal-head';
+    WD_MON.forEach(w => { const d = document.createElement('div'); d.textContent = w; head.appendChild(d); });
+
+    const grid = document.createElement('div'); grid.className = 'cal-grid';
+    for (let i = 0; i < firstWd; i++) { const b = document.createElement('div'); b.className = 'cal-cell blank'; grid.appendChild(b); }
+    for (let dd = 1; dd <= daysInMonth; dd++) {
+      const c = dayCounts[dd];
+      const cell = document.createElement('div');
+      const dObj = new Date(y, m, dd);
+      const isToday = key(dObj) === key(today);
+      cell.className = 'cal-cell lv' + level(c, max) + (isToday ? ' today' : '');
+      cell.title = key(dObj) + ' — ' + c + ' reviews';
+      cell.innerHTML = '<span class="cd">' + dd + '</span>';
+      grid.appendChild(cell);
+    }
+
+    const v = $('view'); v.innerHTML = '';
+    v.appendChild(nav); v.appendChild(head); v.appendChild(grid);
+    nav.querySelectorAll('button').forEach(b => b.onclick = () => { monthOffset += parseInt(b.dataset.d, 10); renderMonth(); });
+  }
+
+  function render() {
+    document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('active', b.dataset.v === view));
+    if (view === 'day') renderDay();
+    else if (view === 'week') renderWeek();
+    else renderMonth();
+  }
+  $('seg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    view = b.dataset.v; render();
+  });
+  render();
+</script>
+</body>
+</html>
