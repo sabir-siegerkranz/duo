@@ -1762,6 +1762,7 @@
 
     function clozeHint(hint, germanWord) {
         if (!hint || !germanWord) return hint;
+        const hadArticle = /^(der|die|das|ein|eine)\s/i.test(germanWord.trim());
         const core = germanWord.trim().replace(/^(der|die|das|ein|eine)\s+/i, '').trim();
         if (core.length < 2) return hint;
         const esc = core.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1809,6 +1810,15 @@
             if (core.length >= 4) {
                 const cmp = new RegExp('([\\p{L}]{0,18})(' + esc + ')([\\p{L}]{0,6})', 'iu');
                 if (cmp.test(hint)) return hint.replace(cmp, (_m, pre) => pre + '____');
+            }
+            // plain verb whose conjugation shifts the stem vowel: "tragen" -> "trägt",
+            // "geben" -> "gibt". (Not for nouns — those are handled above.)
+            if (!hadArticle && /en$/i.test(core) && core.length >= 4) {
+                const stem = core.replace(/en$/i, '').slice(0, 4);
+                if (stem.length >= 3) {
+                    const vr = new RegExp('(^|[^\\p{L}])(' + vowelFuzz(stem) + '[\\p{L}]{0,4})(?![\\p{L}])', 'iu');
+                    if (vr.test(hint)) return hint.replace(vr, '$1____');
+                }
             }
             // otherwise: whole word + up to 3 inflection letters, bounded by non-letters
             const re = new RegExp('(^|[^\\p{L}])(' + esc + '[\\p{L}]{0,3})(?![\\p{L}])', 'iu');
