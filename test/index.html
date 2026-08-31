@@ -90,7 +90,8 @@
         .flashcard-container {
             perspective: 1000px; height: 250px; margin: 10px 0;
             touch-action: none; transition: transform 0.18s ease, box-shadow 0.1s ease;
-            border-radius: 16px; user-select: none;
+            border-radius: 16px;
+            user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
         }
         .flashcard-container.swiping { transition: none; }
         .flashcard-container.cue-correct { box-shadow: 0 0 0 3px var(--success); }
@@ -340,8 +341,12 @@
         .card-actions button:active { transform: scale(0.9); }
         .ex-translation { font-size: 13px; color: #94a3b8; margin-top: 12px; max-width: 92%; }
         .ex-translation.hidden { display: none; }
-        .card-example .w { cursor: pointer; border-radius: 3px; padding: 0 1px; }
-        .card-example .w.sel { background: #bfe3ff; color: #075985; }
+        .card-example { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+        .card-example .w {
+            cursor: pointer; border-radius: 3px; padding: 0 1px;
+            border-bottom: 1px dotted #cbd5e1;
+        }
+        .card-example .w.sel { background: #bfe3ff; color: #075985; border-bottom-color: transparent; }
 
         #word-pop {
             position: fixed; z-index: 150; background: #fff; border: 1px solid #e5e7eb;
@@ -2114,7 +2119,15 @@
             const s = document.createElement('span');
             s.className = 'w';
             s.textContent = core;
-            s.addEventListener('click', (e) => { e.stopPropagation(); onWordTap(s, core); });
+            // own tap detection: the card sits in a touch-action:none swipe zone,
+            // and iOS otherwise hijacks the tap for native text selection
+            let dx = 0, dy = 0, dt = 0;
+            s.addEventListener('pointerdown', (e) => { e.stopPropagation(); dx = e.clientX; dy = e.clientY; dt = e.timeStamp; });
+            s.addEventListener('pointerup', (e) => {
+                e.stopPropagation();
+                if (Math.hypot(e.clientX - dx, e.clientY - dy) < 12 && e.timeStamp - dt < 700) onWordTap(s, core);
+            });
+            s.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); });
             el.appendChild(s);
             if (b < tok.length) el.appendChild(document.createTextNode(tok.slice(b)));
         });
