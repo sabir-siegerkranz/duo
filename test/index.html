@@ -670,6 +670,10 @@
     const DAY_MS = 86400000;
     const MATURE_DAYS = 21;
     const LEARN_SESSION_MAX = 4;   // max times a learning-phase card is re-shown within one session
+    // Intraday "learning steps" — how long a still-learning card waits before it's
+    // due again, by how many correct answers it has in the current streak.
+    // (Promotion to real SM-2 still needs streak >= 3 across >= 2 modes.)
+    const LEARN_STEPS_MS = [15 * 60000, 2 * 3600000, 8 * 3600000];
     const PENDING_KEY = "duocards_pending";
 
     // ------------------------------------------------------------------
@@ -1610,10 +1614,11 @@
             Object.assign(card, patch);
             return patch;
         }
-        const patch = {   // still learning
+        const step = LEARN_STEPS_MS[Math.min(streak, LEARN_STEPS_MS.length) - 1];
+        const patch = {   // still learning — comes back later today, not tomorrow
             learn_streak: streak, learn_modes: modesStr,
             reps: 0, interval_days: 0,
-            due_at: new Date(now + DAY_MS).toISOString(),
+            due_at: new Date(now + step).toISOString(),
             last_reviewed_at: new Date(now).toISOString()
         };
         Object.assign(card, patch);
