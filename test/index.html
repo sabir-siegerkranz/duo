@@ -1832,6 +1832,37 @@
         }).join('');
     }
 
+    // Strong / modal / auxiliary verbs whose finite forms don't follow the
+    // vowel-fuzz pattern ("mögen" -> "mag", "wissen" -> "weiß", "sein" -> "ist").
+    // Keyed by dictionary infinitive; value = alternation of forms to blank.
+    const IRREGULAR_VERBS = {
+        'sein': 'gewesen|wären|wärst|wäre|waren|warst|wart|war|seid|bist|sind|bin|ist|sei',
+        'haben': 'gehabt|hätten|hättest|hätte|hatten|hattest|hattet|hatte|habt|hast|hat|habe',
+        'werden': 'geworden|würden|würdest|würde|wurden|wurdest|wurdet|wurde|wirst|werdet|werde|wird',
+        'mögen': 'möchten|möchtest|möchtet|möchte|mögt|magst|mochten|mochte|mag',
+        'können': 'könnten|könntest|könntet|könnte|könnt|kannst|konnten|konnte|kann',
+        'wollen': 'wollten|wolltest|wolltet|wollte|wollt|willst|will',
+        'sollen': 'sollten|solltest|solltet|sollte|sollst|sollt|soll',
+        'müssen': 'müssten|müsstest|müsste|müsst|musstest|mussten|musste|musst|muss',
+        'dürfen': 'dürften|dürftest|dürfte|dürft|durften|durfte|darfst|darf',
+        'wissen': 'gewusst|wüssten|wüsste|wussten|wusstest|wusste|weißt|wisst|weiß',
+        'tun': 'getan|taten|tatest|tust|tut|tat|tue',
+        'nehmen': 'genommen|nähmen|nahmen|nahmst|nimmst|nehmt|nimmt|nahm|nehme',
+        'geben': 'gegeben|gäben|gabst|gibst|gebt|gibt|gab|gebe',
+        'essen': 'gegessen|aßen|isst|esst|esse|aß',
+        'sehen': 'gesehen|sähen|siehst|sahst|seht|sieht|sehe|sah',
+        'lesen': 'gelesen|läsen|liest|lest|lese|las',
+        'sprechen': 'gesprochen|sprächen|sprichst|sprachst|sprecht|spricht|sprach|spreche',
+        'treffen': 'getroffen|träfen|triffst|trafst|trefft|trifft|traf|treffe',
+        'helfen': 'geholfen|hülfen|hilfst|halfst|helft|hilft|half|helfe',
+        'gehen': 'gegangen|gingen|gingst|gehst|geht|ging|gehe',
+        'kommen': 'gekommen|kämen|kamen|kamst|kommst|kommt|kam|komme',
+        'bringen': 'gebracht|brächten|brachten|brachtest|bringst|bringt|brachte|bringe',
+        'denken': 'gedacht|dächten|dachten|dachtest|denkst|denkt|dachte|denke',
+        'fahren': 'gefahren|führen|fuhren|fuhrst|fährst|fahrt|fährt|fuhr|fahre',
+        'laufen': 'gelaufen|liefen|liefst|läufst|lauft|läuft|lief|laufe'
+    };
+
     function clozeHint(hint, germanWord) {
         if (!hint || !germanWord) return hint;
         const hadArticle = /^(der|die|das|ein|eine)\s/i.test(germanWord.trim());
@@ -1844,6 +1875,13 @@
         if (zuInf) core = zuInf[1] + zuInf[2];
         const esc = core.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         try {
+            // strong / modal / auxiliary verb: blank any of its finite forms
+            // ("mögen" -> "mag", "sein" -> "sind", "wissen" -> "weißt")
+            const irr = !hadArticle && IRREGULAR_VERBS[core.toLowerCase()];
+            if (irr) {
+                const ir = new RegExp('(^|[^\\p{L}])(' + irr + '|' + esc + ')(?![\\p{L}])', 'iu');
+                if (ir.test(hint)) return hint.replace(ir, '$1____');
+            }
             // multi-word headword ("Platz nehmen", "sich melden"): blank each
             // content word wherever it lands in the sentence
             if (/\s/.test(core)) {
