@@ -600,6 +600,7 @@
 
     const DAY_MS = 86400000;
     const MATURE_DAYS = 21;
+    const LEARN_SESSION_MAX = 4;   // max times a learning-phase card is re-shown within one session
     const PENDING_KEY = "duocards_pending";
 
     // ------------------------------------------------------------------
@@ -2072,10 +2073,20 @@
         const finish = () => {
             const wasNew = (Number(card.reps) || 0) === 0 && (Number(card.lapses) || 0) === 0;
             const patch = gradeCard(card, correct, mode);
+            card.__seen = (card.__seen || 0) + 1;
+
             if (!correct) {
-                // bring the card back later in the same session
+                // failed — bring it back within a few cards, while it's fresh
                 const pos = Math.min(4, sessionQueue.length);
                 sessionQueue.splice(pos, 0, card);
+            } else if ((Number(patch.reps) || 0) === 0 && card.__seen < LEARN_SESSION_MAX) {
+                // answered right but still in the learning phase: re-expose it
+                // 5–10 cards later this session instead of not until tomorrow,
+                // so a new word can build its streak (and hit >=2 modes) in one sitting
+                const lo = Math.min(5, sessionQueue.length);
+                const hi = Math.min(10, sessionQueue.length);
+                const at = lo + Math.floor(Math.random() * (hi - lo + 1));
+                sessionQueue.splice(at, 0, card);
             }
             persistReview(card, correct, patch, wasNew);   // fire and forget
             loadNextCard();                                 // clears isTransitioning
