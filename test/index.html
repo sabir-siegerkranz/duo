@@ -351,7 +351,7 @@
         #word-pop {
             position: fixed; z-index: 150; background: #fff; border: 1px solid #e5e7eb;
             border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.18);
-            padding: 10px 12px; width: 232px; max-width: calc(100vw - 24px);
+            padding: 10px 12px; width: 248px; max-width: calc(100vw - 24px);
         }
         #word-pop.hidden { display: none; }
         #word-pop .wp-word { font-weight: 700; font-size: 15px; }
@@ -361,19 +361,28 @@
             width: auto; flex: 1; background: #f1f5f9; color: #334155; border: none;
             padding: 7px 8px; font-size: 13px; border-radius: 8px;
         }
+        #word-pop .wp-open {
+            width: 100%; margin-top: 6px; background: #eef2ff; color: var(--primary);
+            border: none; padding: 7px 8px; font-size: 12px; border-radius: 8px;
+        }
 
-        #explain-body h4 {
+        .explain-view h4 {
             margin: 15px 0 3px; font-size: 11px; letter-spacing: 0.05em;
             text-transform: uppercase; color: #94a3b8;
         }
-        #explain-body h4:first-child { margin-top: 0; }
-        #explain-body p { margin: 3px 0; font-size: 14px; line-height: 1.5; }
-        #explain-body .g-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13.5px; }
-        #explain-body .g-grid dt { color: #94a3b8; }
-        #explain-body ul { margin: 4px 0; padding-left: 18px; font-size: 14px; line-height: 1.55; }
-        #explain-body .ex-de { font-size: 14px; margin-top: 6px; }
-        #explain-body .ex-en { font-size: 13px; color: #94a3b8; }
+        .explain-view h4:first-child { margin-top: 0; }
+        .explain-view p { margin: 3px 0; font-size: 14px; line-height: 1.5; }
+        .explain-view .g-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13.5px; }
+        .explain-view .g-grid dt { color: #94a3b8; }
+        .explain-view ul { margin: 4px 0; padding-left: 18px; font-size: 14px; line-height: 1.55; }
+        .explain-view .ex-de { font-size: 14px; margin-top: 6px; }
+        .explain-view .ex-en { font-size: 13px; color: #94a3b8; }
         .explain-foot { margin-top: 18px; font-size: 11px; color: #cbd5e1; text-align: center; }
+
+        #grammar-box { margin: 4px 0 14px; }
+        #btn-grammar { background: #eef2ff; color: var(--primary); font-size: 13px; padding: 9px; }
+        #grammar-out { margin-top: 10px; }
+        #grammar-out:empty { margin-top: 0; }
     </style>
 </head>
 <body>
@@ -388,8 +397,9 @@
         <div class="wp-tr"></div>
         <div class="wp-actions">
             <button type="button" id="wp-speak">🔊 Say</button>
-            <button type="button" id="wp-add">＋ Add card</button>
+            <button type="button" id="wp-add">＋ Add</button>
         </div>
+        <button type="button" id="wp-open" class="wp-open">✎ Add on full page…</button>
     </div>
 
     <!-- WORD EXPLANATION MODAL -->
@@ -399,7 +409,7 @@
                 <strong id="explain-title">Information</strong>
                 <button class="modal-x" onclick="closeExplain()">✕</button>
             </div>
-            <div id="explain-body"></div>
+            <div id="explain-body" class="explain-view"></div>
         </div>
     </div>
 
@@ -602,6 +612,10 @@
                     <input type="text" id="input-ex-de">
                 </div>
                 <div id="example-picker" class="ex-picker"></div>
+                <div id="grammar-box">
+                    <button type="button" id="btn-grammar" onclick="loadGrammarPanel()">📖 Grammar &amp; details</button>
+                    <div id="grammar-out" class="explain-view"></div>
+                </div>
             </div>
 
             <div id="free-deck-fields" class="hidden">
@@ -1174,6 +1188,7 @@
         document.getElementById('de-error').style.display = 'none';
         document.getElementById('btn-save-card').disabled = false;
         document.getElementById('example-picker').textContent = '';
+        document.getElementById('grammar-out').textContent = '';
     }
 
     function setAddMode(m) {
@@ -1215,6 +1230,7 @@
         document.getElementById('input-hint').value = c.hint || '';
         document.getElementById('input-emoji').value = c.emoji || '';
         document.getElementById('example-picker').textContent = '';
+        document.getElementById('grammar-out').textContent = '';
         document.getElementById('input-de').classList.remove('input-error');
         document.getElementById('de-error').style.display = 'none';
         document.getElementById('btn-save-card').disabled = false;
@@ -1390,6 +1406,11 @@
             showToast("Card saved");
             clearAddForm();
             renderHomeStats();
+            if (gameReturnAfterEdit) {
+                gameReturnAfterEdit = false;
+                showView('view-game');
+                if (currentCard) renderCard(currentCard);
+            }
         } catch (e) {
             showToast("Save failed", true);
         }
@@ -2101,9 +2122,13 @@
         return data;
     }
 
-    // ---- tap-a-word popover ----
+    // ---- tap-a-word popover (single word or a multi-word range) ----
+    let wSpans = [];          // the .w spans of the current example, in order
+    let selA = -1, selB = -1; // selection range endpoints (indices into wSpans)
+
     function renderExampleWords(el, text) {
         el.textContent = '';
+        wSpans = []; selA = selB = -1;
         if (!text) return;
         el.appendChild(document.createTextNode('"'));
         text.split(/(\s+)/).forEach(tok => {
@@ -2116,6 +2141,7 @@
             if (b <= a) { el.appendChild(document.createTextNode(tok)); return; }
             if (a) el.appendChild(document.createTextNode(tok.slice(0, a)));
             const core = tok.slice(a, b);
+            const idx = wSpans.length;
             const s = document.createElement('span');
             s.className = 'w';
             s.textContent = core;
@@ -2125,26 +2151,38 @@
             s.addEventListener('pointerdown', (e) => { e.stopPropagation(); dx = e.clientX; dy = e.clientY; dt = e.timeStamp; });
             s.addEventListener('pointerup', (e) => {
                 e.stopPropagation();
-                if (Math.hypot(e.clientX - dx, e.clientY - dy) < 12 && e.timeStamp - dt < 700) onWordTap(s, core);
+                if (Math.hypot(e.clientX - dx, e.clientY - dy) < 12 && e.timeStamp - dt < 700) onWordTap(idx);
             });
             s.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); });
+            wSpans.push(s);
             el.appendChild(s);
             if (b < tok.length) el.appendChild(document.createTextNode(tok.slice(b)));
         });
         el.appendChild(document.createTextNode('"'));
     }
 
+    function paintSelection() {
+        const lo = Math.min(selA, selB), hi = Math.max(selA, selB);
+        wSpans.forEach((s, i) => s.classList.toggle('sel', selA >= 0 && i >= lo && i <= hi));
+    }
+    function selectedPhrase() {
+        if (selA < 0) return '';
+        const lo = Math.min(selA, selB), hi = Math.max(selA, selB);
+        return wSpans.slice(lo, hi + 1).map(s => s.textContent).join(' ');
+    }
+
     function hideWordPop() {
         const pop = document.getElementById('word-pop');
         if (pop) pop.classList.add('hidden');
-        document.querySelectorAll('#back-example .w.sel').forEach(x => x.classList.remove('sel'));
+        selA = selB = -1;
+        paintSelection();
     }
 
     function positionWordPop(spanEl) {
         const pop = document.getElementById('word-pop');
         const r = spanEl.getBoundingClientRect();
-        const pw = pop.offsetWidth || 232;
-        const ph = pop.offsetHeight || 96;
+        const pw = pop.offsetWidth || 248;
+        const ph = pop.offsetHeight || 120;
         let left = r.left + r.width / 2 - pw / 2;
         left = Math.max(12, Math.min(left, window.innerWidth - pw - 12));
         let top = r.bottom + 8;
@@ -2154,27 +2192,37 @@
         pop.style.top = top + 'px';
     }
 
-    async function onWordTap(spanEl, word) {
+    function lemmaWithArticle(d, fallback) {
+        const lemma = (d && d.lemma) ? String(d.lemma).trim() : (fallback || '');
+        if (/^(der|die|das|ein|eine)\s/i.test(lemma)) return lemma;   // already has one
+        return (d && d.article ? d.article + ' ' : '') + lemma;
+    }
+
+    // first tap sets the anchor; each later tap (while open) moves the other end
+    async function onWordTap(i) {
         const pop = document.getElementById('word-pop');
-        document.querySelectorAll('#back-example .w.sel').forEach(x => x.classList.remove('sel'));
-        spanEl.classList.add('sel');
-        pop._word = word; pop._lemma = word; pop._en = '';
-        pop.querySelector('.wp-word').textContent = word;
+        if (pop.classList.contains('hidden') || selA < 0) { selA = selB = i; }
+        else { selB = i; }
+        paintSelection();
+        const phrase = selectedPhrase();
+        pop._word = phrase; pop._lemma = phrase; pop._en = '';
+        pop.querySelector('.wp-word').textContent = phrase;
         pop.querySelector('.wp-tr').textContent = '…';
         pop.classList.remove('hidden');
-        positionWordPop(spanEl);
+        positionWordPop(wSpans[i]);
         try {
-            const d = await assistFetch('word', { term: word, context: currentExampleText });
+            const d = await assistFetch('word', { term: phrase, context: currentExampleText });
+            if (pop._word !== phrase) return;   // selection changed while loading
             if (d && d.translation) {
-                pop._lemma = d.lemma || word;
+                pop._lemma = lemmaWithArticle(d, phrase);
                 pop._en = d.translation;
-                pop.querySelector('.wp-word').textContent = (d.article ? d.article + ' ' : '') + (d.lemma || word);
+                pop.querySelector('.wp-word').textContent = pop._lemma;
                 pop.querySelector('.wp-tr').textContent = d.translation;
             } else {
                 pop.querySelector('.wp-tr').textContent = '(no translation)';
             }
         } catch (e) {
-            pop.querySelector('.wp-tr').textContent = '(lookup failed)';
+            if (pop._word === phrase) pop.querySelector('.wp-tr').textContent = '(lookup failed)';
         }
     }
 
@@ -2190,7 +2238,8 @@
             return;
         }
         const row = {
-            de: de, en: en, emoji: null, hint: null, ex_de: null,
+            de: de, en: en, emoji: null, hint: null,
+            ex_de: currentExampleText || null,
             user_id: currentUser.id, deck_id: activeDeckId,
             stage: 0, reps: 0, lapses: 0, interval_days: 0, ease: 2.5,
             due_at: new Date().toISOString()
@@ -2204,6 +2253,48 @@
             showToast("Couldn't add card", true);
         }
         hideWordPop();
+    }
+
+    // open the full Add-Card page pre-filled from the current selection,
+    // so the user can pick a different example, tweak it, or read the grammar
+    function openAddFromSelection() {
+        const pop = document.getElementById('word-pop');
+        const lemma = String(pop._lemma || pop._word || '').trim();
+        const en = String(pop._en || '').trim();
+        if (!lemma) return;
+        const ex = currentExampleText || '';
+        hideWordPop();
+        editingCardId = null;
+        gameReturnAfterEdit = true;
+        const deck = decks.find(d => d.id == activeDeckId);
+        const isFree = deck && deck.type === 'free';
+        configureAddForm(isFree);
+        document.getElementById('add-card-title').textContent = 'Add Card';
+        document.getElementById('btn-save-card').textContent = 'Save Card';
+        document.getElementById('add-mode-seg').classList.add('hidden');
+        setAddMode('single');
+        clearAddForm();
+        document.getElementById('input-de').value = lemma;
+        document.getElementById('input-en').value = en;
+        if (isFree) document.getElementById('input-hint').value = ex;
+        else document.getElementById('input-ex-de').value = ex;
+        handleInputChange();
+        showView('view-add');
+    }
+
+    // ---- grammar / details panel on the Add-Card page ----
+    async function loadGrammarPanel() {
+        const term = document.getElementById('input-de').value.trim();
+        const out = document.getElementById('grammar-out');
+        if (!term) { out.textContent = 'Enter the German word first.'; return; }
+        out.textContent = 'Loading…';
+        try {
+            const d = await assistFetch('explain', { term });
+            if (!d || d.error || !d.meaning) throw new Error('bad');
+            renderExplainInto(out, d);
+        } catch (e) {
+            out.textContent = 'Could not load details — try again in a moment.';
+        }
     }
 
     // ---- translate the example sentence ----
@@ -2248,9 +2339,11 @@
         }
     }
     function renderExplain(d) {
-        const body = document.getElementById('explain-body');
-        body.textContent = '';
         if (d.headword) document.getElementById('explain-title').textContent = 'Information about "' + d.headword + '"';
+        renderExplainInto(document.getElementById('explain-body'), d);
+    }
+    function renderExplainInto(body, d) {
+        body.textContent = '';
         const h = (t) => { const e = document.createElement('h4'); e.textContent = t; body.appendChild(e); };
         const p = (t, cls) => { const e = document.createElement('p'); if (cls) e.className = cls; e.textContent = t; body.appendChild(e); };
         h('Meaning' + (d.pos ? ' · ' + d.pos : ''));
@@ -2353,6 +2446,7 @@
         wire('act-edit', editCurrentCardInGame);
         wire('wp-speak', () => { const p = document.getElementById('word-pop'); if (p && p._word) { warmTTS(); speakGerman(p._word); } });
         wire('wp-add', quickAddWord);
+        wire('wp-open', openAddFromSelection);
         document.addEventListener('click', (e) => {
             const pop = document.getElementById('word-pop');
             if (!pop || pop.classList.contains('hidden')) return;
