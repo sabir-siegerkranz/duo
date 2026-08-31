@@ -2198,11 +2198,25 @@
         return (d && d.article ? d.article + ' ' : '') + lemma;
     }
 
-    // first tap sets the anchor; each later tap (while open) moves the other end
+    // tap rules:
+    //  - popover closed        -> select just that word
+    //  - tap OUTSIDE the range -> extend to it
+    //  - tap INSIDE a range    -> collapse the selection to that one word
+    //  - tap the only selected word again -> deselect (close)
     async function onWordTap(i) {
         const pop = document.getElementById('word-pop');
-        if (pop.classList.contains('hidden') || selA < 0) { selA = selB = i; }
-        else { selB = i; }
+        const open = !pop.classList.contains('hidden') && selA >= 0;
+        if (!open) {
+            selA = selB = i;
+        } else {
+            const lo = Math.min(selA, selB), hi = Math.max(selA, selB);
+            if (i >= lo && i <= hi) {
+                if (lo === hi) { hideWordPop(); return; }
+                selA = selB = i;
+            } else {
+                selB = i;
+            }
+        }
         paintSelection();
         const phrase = selectedPhrase();
         pop._word = phrase; pop._lemma = phrase; pop._en = '';
