@@ -981,10 +981,9 @@
     function srsState(c) {
         const iv = Number(c.interval_days) || 0;
         const reps = Number(c.reps) || 0;
-        const lapses = Number(c.lapses) || 0;
-        if (reps === 0 && lapses === 0 && iv === 0) return 'new';
-        if (iv >= MATURE_DAYS) return 'mature';
-        return 'young';
+        if (reps === 0) return 'new';           // still in the learning phase = "To Learn"
+        if (iv >= MATURE_DAYS) return 'mature'; // "Learned"
+        return 'young';                          // "Practiced"
     }
 
     function isDue(c) {
@@ -1422,7 +1421,50 @@
     }
 
     // ------------------------------------------------------------------
-    // SRS scheduler (SM-2-lite, two outcomes)
+    // Learning phase: a card stays "To Learn" until 3 uninterrupted Correct
+    // answers across >= 2 of the 3 modes (e = English->German, d = German->English,
+    // m = matching game). Each learning-phase Correct just re-shows it +1 day;
+    // promotion starts the SM-2 progression at interval 1.  mode is 'e' | 'd' | 'm'.
+    function gradeLearning(card, correct, mode) {
+        const now = Date.now();
+        if (!correct) {
+            const patch = {
+                learn_streak: 0, learn_modes: '',
+                reps: 0, interval_days: 0,
+                lapses: (Number(card.lapses) || 0) + 1,
+                ease: Math.max(1.3, (Number(card.ease) || 2.5) - 0.20),
+                due_at: new Date(now).toISOString(),
+                last_reviewed_at: new Date(now).toISOString()
+            };
+            Object.assign(card, patch);
+            return patch;
+        }
+        const modes = new Set((card.learn_modes || '').split('').filter(Boolean));
+        modes.add(mode);
+        const streak = (Number(card.learn_streak) || 0) + 1;
+        const modesStr = [...modes].join('');
+
+        if (streak >= 3 && modes.size >= 2) {
+            const patch = {   // PROMOTE -> enter SM-2
+                learn_streak: streak, learn_modes: modesStr,
+                reps: 1, interval_days: 1,
+                due_at: new Date(now + DAY_MS).toISOString(),
+                last_reviewed_at: new Date(now).toISOString()
+            };
+            Object.assign(card, patch);
+            return patch;
+        }
+        const patch = {   // still learning
+            learn_streak: streak, learn_modes: modesStr,
+            reps: 0, interval_days: 0,
+            due_at: new Date(now + DAY_MS).toISOString(),
+            last_reviewed_at: new Date(now).toISOString()
+        };
+        Object.assign(card, patch);
+        return patch;
+    }
+
+    // SRS scheduler (SM-2-lite) — only for promoted cards (reps >= 1)
     // ------------------------------------------------------------------
     function schedule(card, correct) {
         const now = Date.now();
@@ -1452,8 +1494,14 @@
             due_at: dueAt.toISOString(),
             last_reviewed_at: new Date(now).toISOString()
         };
+        if (!correct) { patch.learn_streak = 0; patch.learn_modes = ''; card.learn_streak = 0; card.learn_modes = ''; }
         Object.assign(card, patch);
         return patch;
+    }
+
+    // route a graded answer to the right engine
+    function gradeCard(card, correct, mode) {
+        return (Number(card.reps) || 0) >= 1 ? schedule(card, correct) : gradeLearning(card, correct, mode);
     }
 
     async function newDoneToday(deckId) {
@@ -1503,12 +1551,16 @@
         const limit = deck && deck.daily_new_limit != null ? deck.daily_new_limit : 0;
         const unlimited = !limit || limit <= 0;   // 0 / null = no daily new-card cap
 
+        // "due" = anything past its due time that has been graded at least once
+        // (promoted reviews, lapses, and learning-phase cards waiting out their +1 day)
         const due = allCards
-            .filter(c => (Number(c.reps) > 0 || Number(c.lapses) > 0) && isDue(c))
+            .filter(c => (Number(c.reps) > 0 || Number(c.lapses) > 0 || Number(c.learn_streak) > 0) && isDue(c))
             .sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
 
+        // "new" = never graded at all; a learning card mid-streak is NOT re-shown
+        // the same day (its due_at is +1 day, and learn_streak > 0 excludes it)
         const newCards = allCards
-            .filter(c => Number(c.reps) === 0 && Number(c.lapses) === 0)
+            .filter(c => Number(c.reps) === 0 && Number(c.lapses) === 0 && Number(c.learn_streak) === 0)
             .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
 
         // never-tested cards get introduced via matching rounds first
@@ -1668,17 +1720,18 @@
         }
     }
 
-    // A correct match introduces a never-tested card (reps 0 -> scheduled like a
-    // first "Correct"). For cards already in review it's just logged, no reschedule.
+    // A correct match counts as one "Correct" in mode 'm'. Learning-phase cards
+    // advance their streak; promoted cards are just logged (no reschedule).
     function matchGrade(card) {
+        const promoted = (Number(card.reps) || 0) >= 1;
         const wasNew = (Number(card.reps) || 0) === 0 && (Number(card.lapses) || 0) === 0;
-        if (wasNew) {
-            const patch = schedule(card, true);
-            persistReview(card, true, patch, true);
-        } else {
-            const patch = { last_reviewed_at: new Date().toISOString() };
+        if (promoted) {
+            const patch = { last_reviewed_at: new Date().toISOString(), interval_days: Number(card.interval_days) || 0 };
             card.last_reviewed_at = patch.last_reviewed_at;
-            persistReview(card, true, { ...patch, interval_days: Number(card.interval_days) || 0 }, false);
+            persistReview(card, true, patch, false);
+        } else {
+            const patch = gradeLearning(card, true, 'm');
+            persistReview(card, true, patch, wasNew);
         }
     }
 
@@ -1752,6 +1805,7 @@
 
     let currentGermanText = '';
     let currentExampleText = '';
+    let currentMode = 'e';   // grading mode for the on-screen card: 'e' | 'd'
     let germanOnBack = false;   // true = German side is the back (revealed on flip)
 
     // wire the four replay speaker buttons once
@@ -1794,6 +1848,7 @@
 
         currentGermanText = card.de || '';
         currentExampleText = card.hint || card.ex_de || '';
+        currentMode = learningFront ? 'd' : 'e';   // d = German shown -> recall English, e = English shown -> recall German
         germanOnBack = !learningFront;
         primeTTS(currentGermanText);   // buffer the word's audio now, ready for the flip
         if (learningFront) speakGerman(currentGermanText);   // German side is already showing
@@ -1907,9 +1962,10 @@
 
         const card = currentCard;
 
+        const mode = currentMode;
         const finish = () => {
             const wasNew = (Number(card.reps) || 0) === 0 && (Number(card.lapses) || 0) === 0;
-            const patch = schedule(card, correct);
+            const patch = gradeCard(card, correct, mode);
             if (!correct) {
                 // bring the card back later in the same session
                 const pos = Math.min(4, sessionQueue.length);
