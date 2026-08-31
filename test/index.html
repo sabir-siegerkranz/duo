@@ -1766,6 +1766,22 @@
         if (core.length < 2) return hint;
         const esc = core.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         try {
+            // multi-word headword ("Platz nehmen", "sich melden"): blank each
+            // content word wherever it lands in the sentence
+            if (/\s/.test(core)) {
+                const skip = new Set(['sie', 'das', 'der', 'die', 'den', 'dem', 'ein', 'eine', 'ich', 'wir', 'ihr', 'sich', 'mich', 'dich', 'uns', 'euch', 'nach', 'auf', 'mit', 'zu', 'um', 'an', 'es', 'du']);
+                const words = core.split(/\s+/).filter(w => w.length >= 3 && !skip.has(w.toLowerCase()));
+                let out = hint, any = false;
+                for (const w of words) {
+                    const we = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const stem = w.replace(/en$/i, '').slice(0, 4);
+                    const re1 = new RegExp('(^|[^\\p{L}])(' + we + '[\\p{L}]{0,3})(?![\\p{L}])', 'iu');
+                    const re2 = stem.length >= 3 ? new RegExp('(^|[^\\p{L}])(' + vowelFuzz(stem) + '[\\p{L}]{0,4})(?![\\p{L}])', 'iu') : null;
+                    if (re1.test(out)) { out = out.replace(re1, '$1____'); any = true; }
+                    else if (re2 && re2.test(out)) { out = out.replace(re2, '$1____'); any = true; }
+                }
+                if (any) return out;
+            }
             // separable verb split across the sentence: blank the conjugated stem
             // AND the trailing particle  (anrufen -> "Ich ____ dich morgen ____.")
             const lc = core.toLowerCase();
