@@ -891,12 +891,12 @@
 
         const right = document.createElement('div');
         right.className = 'deck-item-right';
-        const pending = deckPending(d.id);
-        if (pending > 0) {
+        const total = (deckCounts[d.id] && deckCounts[d.id].total) || 0;
+        if (total > 0) {
             const cb = document.createElement('span');
             cb.className = 'deck-count-badge';
-            cb.textContent = pending;
-            cb.title = pending + ' cards to review';
+            cb.textContent = total;
+            cb.title = total + ' cards in this deck';
             right.appendChild(cb);
         }
         const gear = document.createElement('button');
@@ -1074,9 +1074,8 @@
         document.getElementById('home-count-practiced').textContent = practiced;
         document.getElementById('home-count-learned').textContent = learned;
 
-        const dueCount = allCards.filter(isDue).length;
         const playBtn = document.getElementById('play-btn');
-        if (playBtn) playBtn.textContent = dueCount ? `▶ Play Deck (${dueCount} due)` : '▶ Play Deck';
+        if (playBtn) playBtn.textContent = '▶ Play Deck';
     }
 
     // ------------------------------------------------------------------
