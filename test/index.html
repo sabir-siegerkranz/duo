@@ -328,6 +328,47 @@
             .card-hint { font-size: 18px; margin-top: 16px; }
             .swipe-hint { margin-top: 14px; font-size: 13px; }
         }
+
+        /* in-practice: undo, post-flip action row, tappable example words */
+        #btn-undo { width: auto; padding: 6px 10px; background: #e2e8f0; color: #475569; font-size: 15px; }
+        #btn-undo:disabled { opacity: 0.35; }
+        .card-actions { display: flex; gap: 20px; margin-top: 18px; }
+        .card-actions button {
+            width: auto; background: none; border: none; font-size: 21px; line-height: 1;
+            padding: 4px; color: var(--primary);
+        }
+        .card-actions button:active { transform: scale(0.9); }
+        .ex-translation { font-size: 13px; color: #94a3b8; margin-top: 12px; max-width: 92%; }
+        .ex-translation.hidden { display: none; }
+        .card-example .w { cursor: pointer; border-radius: 3px; padding: 0 1px; }
+        .card-example .w.sel { background: #bfe3ff; color: #075985; }
+
+        #word-pop {
+            position: fixed; z-index: 150; background: #fff; border: 1px solid #e5e7eb;
+            border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+            padding: 10px 12px; width: 232px; max-width: calc(100vw - 24px);
+        }
+        #word-pop.hidden { display: none; }
+        #word-pop .wp-word { font-weight: 700; font-size: 15px; }
+        #word-pop .wp-tr { font-size: 13px; color: #475569; margin: 3px 0 9px; min-height: 17px; }
+        #word-pop .wp-actions { display: flex; gap: 8px; }
+        #word-pop .wp-actions button {
+            width: auto; flex: 1; background: #f1f5f9; color: #334155; border: none;
+            padding: 7px 8px; font-size: 13px; border-radius: 8px;
+        }
+
+        #explain-body h4 {
+            margin: 15px 0 3px; font-size: 11px; letter-spacing: 0.05em;
+            text-transform: uppercase; color: #94a3b8;
+        }
+        #explain-body h4:first-child { margin-top: 0; }
+        #explain-body p { margin: 3px 0; font-size: 14px; line-height: 1.5; }
+        #explain-body .g-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13.5px; }
+        #explain-body .g-grid dt { color: #94a3b8; }
+        #explain-body ul { margin: 4px 0; padding-left: 18px; font-size: 14px; line-height: 1.55; }
+        #explain-body .ex-de { font-size: 14px; margin-top: 6px; }
+        #explain-body .ex-en { font-size: 13px; color: #94a3b8; }
+        .explain-foot { margin-top: 18px; font-size: 11px; color: #cbd5e1; text-align: center; }
     </style>
 </head>
 <body>
@@ -335,6 +376,27 @@
 <div class="container">
     <div id="toast" class="toast">Card Saved!</div>
     <div id="ptr">↻</div>
+
+    <!-- TAP-A-WORD POPOVER (in practice) -->
+    <div id="word-pop" class="hidden">
+        <div class="wp-word"></div>
+        <div class="wp-tr"></div>
+        <div class="wp-actions">
+            <button type="button" id="wp-speak">🔊 Say</button>
+            <button type="button" id="wp-add">＋ Add card</button>
+        </div>
+    </div>
+
+    <!-- WORD EXPLANATION MODAL -->
+    <div id="explain-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeExplain()">
+        <div class="modal-card">
+            <div class="modal-head">
+                <strong id="explain-title">Information</strong>
+                <button class="modal-x" onclick="closeExplain()">✕</button>
+            </div>
+            <div id="explain-body"></div>
+        </div>
+    </div>
 
     <!-- DECK PICKER MODAL -->
     <div id="deck-picker" class="modal-overlay hidden" onclick="if(event.target===this)closeDeckPicker()">
@@ -445,6 +507,7 @@
         <div class="card-box header">
             <button style="width: auto; padding: 6px 12px; background-color: #a0aec0;" onclick="exitGameToHome()">← Exit</button>
             <div style="font-weight: bold;" id="game-deck-title">Deck</div>
+            <button id="btn-undo" title="Undo last answer" onclick="undoLast()" disabled>↶ Undo</button>
         </div>
 
         <div class="card-box">
@@ -471,6 +534,12 @@
                             <div class="spk-line">
                                 <button class="spk hidden" id="spk-be" type="button">🔊</button>
                                 <span class="card-example" id="back-example">...</span>
+                            </div>
+                            <div class="ex-translation hidden" id="ex-translation"></div>
+                            <div class="card-actions" id="card-actions">
+                                <button type="button" id="act-explain" title="Word explanation">📖</button>
+                                <button type="button" id="act-translate" title="Translate the example">🔤</button>
+                                <button type="button" id="act-edit" title="Edit this card">✏️</button>
                             </div>
                         </div>
                     </div>
@@ -689,6 +758,7 @@
         flushPending();
         initSwipe();
         initSpeakers();
+        initCardActions();
         initPullToRefresh();
     });
     window.addEventListener('online', flushPending);
@@ -1106,6 +1176,7 @@
     function openAddCardModal() {
         if (!activeDeckId) return showToast("Select a deck first", true);
         editingCardId = null;
+        gameReturnAfterEdit = false;
         const deck = decks.find(d => d.id == activeDeckId);
         configureAddForm(deck && deck.type === 'free');
         document.getElementById('add-card-title').textContent = 'Add Card';
@@ -1144,6 +1215,12 @@
     function exitAddToHome() {
         editingCardId = null;
         bulkItems = [];
+        if (gameReturnAfterEdit) {
+            gameReturnAfterEdit = false;
+            showView('view-game');
+            if (currentCard) renderCard(currentCard);
+            return;
+        }
         showView('view-home');
         fetchDeckCounts().then(renderHomeDecks);
     }
@@ -1276,6 +1353,12 @@
                 showToast("Card updated");
                 editingCardId = null;
                 renderHomeStats();
+                if (gameReturnAfterEdit) {
+                    gameReturnAfterEdit = false;
+                    showView('view-game');
+                    if (currentCard) renderCard(currentCard);
+                    return;
+                }
                 renderCardList();
                 showView('view-cards');
                 return;
@@ -1308,6 +1391,7 @@
     // ------------------------------------------------------------------
     function openManageCards() {
         if (!activeDeckId) return showToast("Select a deck first", true);
+        gameReturnAfterEdit = false;
         const d = decks.find(x => x.id == activeDeckId);
         document.getElementById('cards-deck-name').textContent = d ? d.name : '';
         renderCardList();
@@ -1669,6 +1753,9 @@
         document.getElementById('game-deck-title').textContent = deck ? deck.name : 'Practice';
         showView('view-game');
         currentCard = null;
+        lastGraded = null;
+        gameReturnAfterEdit = false;
+        updateUndoBtn();
         isTransitioning = false;
         await fetchActiveDeckCards();
         await buildSessionQueue();
@@ -1679,6 +1766,9 @@
     function exitGameToHome() {
         matchState = null;
         isTransitioning = false;
+        lastGraded = null;
+        hideWordPop();
+        closeExplain();
         document.getElementById('match-container').classList.add('hidden');
         showView('view-home');
         renderHomeStats();       // instant: in-memory cards were mutated by schedule() during practice
@@ -1700,6 +1790,8 @@
         cardEl.classList.add('no-anim');
         cardEl.classList.remove('flipped');
         resetCardPos();
+        hideWordPop();
+        updateUndoBtn();
 
         const next = sessionQueue.shift() || null;
 
@@ -1736,6 +1828,8 @@
 
     function showMatchRound(cards) {
         isTransitioning = true;   // block swipe/tap grading of the hidden flashcard
+        lastGraded = null;        // no per-card undo across a match round
+        updateUndoBtn();
         document.getElementById('game-container').classList.add('hidden');
         document.getElementById('empty-state').classList.add('hidden');
         document.getElementById('match-container').classList.remove('hidden');
@@ -1962,6 +2056,293 @@
         ['spk-fh', 'spk-be'].forEach(id => { const b = document.getElementById(id); if (b) b.onclick = stop(example); });
     }
 
+    // ==================================================================
+    // In-practice mechanics: undo, post-flip actions, tap-a-word
+    // ==================================================================
+
+    // ---- assist calls (example translation / word lookup / explanation) ----
+    const ASSIST_KEY = 'duocards_assist';
+    const ASSIST_TTL = 7 * 864e5;   // 7 days
+    function assistCacheGet(k) {
+        try {
+            const all = JSON.parse(localStorage.getItem(ASSIST_KEY) || '{}');
+            const e = all[k];
+            if (e && Date.now() - e.t < ASSIST_TTL) return e.d;
+        } catch (e) {}
+        return null;
+    }
+    function assistCachePut(k, d) {
+        try {
+            const all = JSON.parse(localStorage.getItem(ASSIST_KEY) || '{}');
+            all[k] = { t: Date.now(), d };
+            const keys = Object.keys(all);
+            if (keys.length > 200) keys.sort((a, b) => all[a].t - all[b].t).slice(0, keys.length - 200).forEach(x => delete all[x]);
+            localStorage.setItem(ASSIST_KEY, JSON.stringify(all));
+        } catch (e) {}
+    }
+    async function assistFetch(mode, payload) {
+        const key = mode + '|' + String(payload.text || payload.term || '').trim().toLowerCase();
+        const hit = assistCacheGet(key);
+        if (hit) return hit;
+        const res = await fetch(ENRICH_URL, { method: 'POST', headers: FN_HEADERS, body: JSON.stringify(Object.assign({ mode: mode }, payload)) });
+        if (!res.ok) throw new Error('assist ' + res.status);
+        const data = await res.json();
+        if (data && !data.error) assistCachePut(key, data);
+        return data;
+    }
+
+    // ---- tap-a-word popover ----
+    function renderExampleWords(el, text) {
+        el.textContent = '';
+        if (!text) return;
+        el.appendChild(document.createTextNode('"'));
+        text.split(/(\s+)/).forEach(tok => {
+            if (tok === '') return;
+            if (/^\s+$/.test(tok)) { el.appendChild(document.createTextNode(tok)); return; }
+            const lead = tok.match(/^[^\p{L}\p{N}]+/u);
+            const trail = tok.match(/[^\p{L}\p{N}]+$/u);
+            const a = lead ? lead[0].length : 0;
+            const b = trail ? tok.length - trail[0].length : tok.length;
+            if (b <= a) { el.appendChild(document.createTextNode(tok)); return; }
+            if (a) el.appendChild(document.createTextNode(tok.slice(0, a)));
+            const core = tok.slice(a, b);
+            const s = document.createElement('span');
+            s.className = 'w';
+            s.textContent = core;
+            s.addEventListener('click', (e) => { e.stopPropagation(); onWordTap(s, core); });
+            el.appendChild(s);
+            if (b < tok.length) el.appendChild(document.createTextNode(tok.slice(b)));
+        });
+        el.appendChild(document.createTextNode('"'));
+    }
+
+    function hideWordPop() {
+        const pop = document.getElementById('word-pop');
+        if (pop) pop.classList.add('hidden');
+        document.querySelectorAll('#back-example .w.sel').forEach(x => x.classList.remove('sel'));
+    }
+
+    function positionWordPop(spanEl) {
+        const pop = document.getElementById('word-pop');
+        const r = spanEl.getBoundingClientRect();
+        const pw = pop.offsetWidth || 232;
+        const ph = pop.offsetHeight || 96;
+        let left = r.left + r.width / 2 - pw / 2;
+        left = Math.max(12, Math.min(left, window.innerWidth - pw - 12));
+        let top = r.bottom + 8;
+        if (top + ph > window.innerHeight - 12) top = r.top - ph - 8;
+        if (top < 12) top = 12;
+        pop.style.left = left + 'px';
+        pop.style.top = top + 'px';
+    }
+
+    async function onWordTap(spanEl, word) {
+        const pop = document.getElementById('word-pop');
+        document.querySelectorAll('#back-example .w.sel').forEach(x => x.classList.remove('sel'));
+        spanEl.classList.add('sel');
+        pop._word = word; pop._lemma = word; pop._en = '';
+        pop.querySelector('.wp-word').textContent = word;
+        pop.querySelector('.wp-tr').textContent = '…';
+        pop.classList.remove('hidden');
+        positionWordPop(spanEl);
+        try {
+            const d = await assistFetch('word', { term: word, context: currentExampleText });
+            if (d && d.translation) {
+                pop._lemma = d.lemma || word;
+                pop._en = d.translation;
+                pop.querySelector('.wp-word').textContent = (d.article ? d.article + ' ' : '') + (d.lemma || word);
+                pop.querySelector('.wp-tr').textContent = d.translation;
+            } else {
+                pop.querySelector('.wp-tr').textContent = '(no translation)';
+            }
+        } catch (e) {
+            pop.querySelector('.wp-tr').textContent = '(lookup failed)';
+        }
+    }
+
+    async function quickAddWord() {
+        const pop = document.getElementById('word-pop');
+        const de = String(pop._lemma || pop._word || '').trim();
+        const en = String(pop._en || '').trim();
+        if (!de) return;
+        if (!en) { showToast('Still looking that word up…'); return; }
+        if (allCards.some(c => c.de && c.de.toLowerCase() === de.toLowerCase())) {
+            showToast('"' + de + '" is already in this deck');
+            hideWordPop();
+            return;
+        }
+        const row = {
+            de: de, en: en, emoji: null, hint: null, ex_de: null,
+            user_id: currentUser.id, deck_id: activeDeckId,
+            stage: 0, reps: 0, lapses: 0, interval_days: 0, ease: 2.5,
+            due_at: new Date().toISOString()
+        };
+        try {
+            const res = await apiFetch(`${API_URL}/cards`, { method: 'POST', headers, body: JSON.stringify(row) });
+            const created = await res.json();
+            if (Array.isArray(created) && created[0]) allCards.push(created[0]);
+            showToast('Added "' + de + '"');
+        } catch (e) {
+            showToast("Couldn't add card", true);
+        }
+        hideWordPop();
+    }
+
+    // ---- translate the example sentence ----
+    async function toggleExampleTranslation() {
+        const box = document.getElementById('ex-translation');
+        if (!box.classList.contains('hidden')) { box.classList.add('hidden'); box.textContent = ''; return; }
+        const ex = currentExampleText;
+        if (!ex) return;
+        box.classList.remove('hidden');
+        box.textContent = '…';
+        try {
+            const d = await assistFetch('sentence', { text: ex });
+            box.textContent = (d && d.translation) ? d.translation : '(translation unavailable)';
+        } catch (e) {
+            box.textContent = '(translation unavailable)';
+        }
+    }
+
+    // ---- word explanation modal ----
+    async function openExplain() {
+        if (!currentCard) return;
+        const modal = document.getElementById('explain-modal');
+        const body = document.getElementById('explain-body');
+        const term = currentCard.de || '';
+        document.getElementById('explain-title').textContent = 'Information about "' + term + '"';
+        body.textContent = '';
+        const load = document.createElement('p');
+        load.style.color = '#94a3b8';
+        load.textContent = 'Loading…';
+        body.appendChild(load);
+        modal.classList.remove('hidden');
+        try {
+            const d = await assistFetch('explain', { term });
+            if (!d || d.error || !d.meaning) throw new Error('bad');
+            renderExplain(d);
+        } catch (e) {
+            body.textContent = '';
+            const p = document.createElement('p');
+            p.style.color = '#ef4444';
+            p.textContent = 'Could not load an explanation — try again in a moment.';
+            body.appendChild(p);
+        }
+    }
+    function renderExplain(d) {
+        const body = document.getElementById('explain-body');
+        body.textContent = '';
+        if (d.headword) document.getElementById('explain-title').textContent = 'Information about "' + d.headword + '"';
+        const h = (t) => { const e = document.createElement('h4'); e.textContent = t; body.appendChild(e); };
+        const p = (t, cls) => { const e = document.createElement('p'); if (cls) e.className = cls; e.textContent = t; body.appendChild(e); };
+        h('Meaning' + (d.pos ? ' · ' + d.pos : ''));
+        p(d.meaning || '');
+        if (Array.isArray(d.grammar) && d.grammar.length) {
+            h('Grammar');
+            const dl = document.createElement('dl');
+            dl.className = 'g-grid';
+            d.grammar.forEach(g => {
+                const dt = document.createElement('dt'); dt.textContent = g.label;
+                const dd = document.createElement('dd'); dd.textContent = g.value;
+                dl.appendChild(dt); dl.appendChild(dd);
+            });
+            body.appendChild(dl);
+        }
+        if (Array.isArray(d.synonyms) && d.synonyms.length) {
+            h('Synonyms');
+            const ul = document.createElement('ul');
+            d.synonyms.forEach(s => {
+                const li = document.createElement('li');
+                li.textContent = s.de + (s.en ? ' — ' + s.en : '');
+                ul.appendChild(li);
+            });
+            body.appendChild(ul);
+        }
+        if (d.usage) { h('Usage'); p(d.usage); }
+        if (Array.isArray(d.examples) && d.examples.length) {
+            h('Examples');
+            d.examples.forEach(e => {
+                p(e.de, 'ex-de');
+                if (e.en) p(e.en, 'ex-en');
+            });
+        }
+        const foot = document.createElement('div');
+        foot.className = 'explain-foot';
+        foot.textContent = 'AI-generated — may contain mistakes.';
+        body.appendChild(foot);
+    }
+    function closeExplain() { document.getElementById('explain-modal').classList.add('hidden'); }
+
+    // ---- edit the current card without leaving the session ----
+    let gameReturnAfterEdit = false;
+    function editCurrentCardInGame() {
+        if (!currentCard) return;
+        gameReturnAfterEdit = true;
+        hideWordPop();
+        openEditCard(currentCard.id);
+    }
+
+    // ---- one-step undo of the last graded answer ----
+    const SNAP_KEYS = ['reps', 'lapses', 'interval_days', 'ease', 'due_at', 'learn_streak', 'learn_modes', 'last_reviewed_at', '__seen'];
+    let lastGraded = null;   // { card, snap, reviewedAt }
+
+    function snapshotCard(card) {
+        const s = {};
+        SNAP_KEYS.forEach(k => { s[k] = card[k]; });
+        return s;
+    }
+    function updateUndoBtn() {
+        const b = document.getElementById('btn-undo');
+        if (b) b.disabled = !lastGraded || isTransitioning;
+    }
+    function undoLast() {
+        if (!lastGraded || isTransitioning) return;
+        const g = lastGraded;
+        lastGraded = null;
+        let i;
+        while ((i = sessionQueue.indexOf(g.card)) !== -1) sessionQueue.splice(i, 1);
+        if (currentCard && currentCard !== g.card) sessionQueue.unshift(currentCard);
+        Object.assign(g.card, g.snap);
+        currentCard = g.card;
+        const el = document.getElementById('card');
+        el.classList.add('no-anim');
+        el.classList.remove('flipped');
+        resetCardPos();
+        document.getElementById('match-container').classList.add('hidden');
+        document.getElementById('game-container').classList.remove('hidden');
+        document.getElementById('empty-state').classList.add('hidden');
+        renderCard(g.card);
+        setTimeout(() => el.classList.remove('no-anim'), 50);
+        revertReview(g.card, g.snap, g.reviewedAt);
+        updateUndoBtn();
+    }
+    function revertReview(card, snap, reviewedAt) {
+        const patch = {};
+        ['reps', 'lapses', 'interval_days', 'ease', 'due_at', 'learn_streak', 'learn_modes', 'last_reviewed_at'].forEach(k => {
+            patch[k] = snap[k] === undefined ? null : snap[k];
+        });
+        fetch(`${API_URL}/cards?id=eq.${card.id}`, { method: 'PATCH', headers, body: JSON.stringify(patch) }).catch(() => {});
+        if (reviewedAt) {
+            fetch(`${API_URL}/review_log?card_id=eq.${card.id}&reviewed_at=eq.${encodeURIComponent(reviewedAt)}`, { method: 'DELETE', headers }).catch(() => {});
+        }
+    }
+
+    function initCardActions() {
+        const stop = (fn) => (e) => { e.stopPropagation(); e.preventDefault(); fn(); };
+        const wire = (id, fn) => { const b = document.getElementById(id); if (b) b.addEventListener('click', stop(fn)); };
+        wire('act-explain', openExplain);
+        wire('act-translate', toggleExampleTranslation);
+        wire('act-edit', editCurrentCardInGame);
+        wire('wp-speak', () => { const p = document.getElementById('word-pop'); if (p && p._word) { warmTTS(); speakGerman(p._word); } });
+        wire('wp-add', quickAddWord);
+        document.addEventListener('click', (e) => {
+            const pop = document.getElementById('word-pop');
+            if (!pop || pop.classList.contains('hidden')) return;
+            if (pop.contains(e.target)) return;
+            hideWordPop();
+        });
+    }
+
     function renderCard(card) {
         const deck = decks.find(d => d.id == activeDeckId);
         const dir = deck ? (deck.practice_direction || 'random') : 'random';
@@ -1983,7 +2364,13 @@
         document.getElementById('front-text').textContent = frontText;
         document.getElementById('front-hint').textContent = frontHint;
         document.getElementById('back-text').textContent = backText;
-        document.getElementById('back-example').textContent = hint ? '"' + hint + '"' : '';
+        renderExampleWords(document.getElementById('back-example'), hint);
+
+        // reset the in-practice extras for the new card
+        hideWordPop();
+        const exTr = document.getElementById('ex-translation');
+        exTr.textContent = ''; exTr.classList.add('hidden');
+        document.getElementById('act-translate').style.display = hint ? '' : 'none';
 
         // replay speakers: show one next to whichever text is German
         document.getElementById('spk-fw').classList.toggle('hidden', !learningFront);
@@ -2003,6 +2390,7 @@
         const el = document.getElementById('card');
         el.classList.toggle('flipped');
         const showingBack = el.classList.contains('flipped');
+        if (!showingBack) hideWordPop();
         if (showingBack === germanOnBack) speakGerman(currentGermanText);
     }
 
@@ -2095,6 +2483,8 @@
     function onCardTap() {
         if (suppressNextClick) { suppressNextClick = false; return; }
         if (isTransitioning || !currentCard) return;
+        const pop = document.getElementById('word-pop');
+        if (pop && !pop.classList.contains('hidden')) { hideWordPop(); return; }  // first tap just dismisses the popover
         flipCard();
     }
 
@@ -2110,8 +2500,11 @@
         const mode = currentMode;
         const finish = () => {
             const wasNew = (Number(card.reps) || 0) === 0 && (Number(card.lapses) || 0) === 0;
+            const snap = snapshotCard(card);
+            const reviewedAt = new Date().toISOString();
             const patch = gradeCard(card, correct, mode);
             card.__seen = (card.__seen || 0) + 1;
+            lastGraded = { card: card, snap: snap, reviewedAt: reviewedAt };
 
             if (!correct) {
                 // failed — bring it back within a few cards, while it's fresh
@@ -2126,7 +2519,7 @@
                 const at = lo + Math.floor(Math.random() * (hi - lo + 1));
                 sessionQueue.splice(at, 0, card);
             }
-            persistReview(card, correct, patch, wasNew);   // fire and forget
+            persistReview(card, correct, patch, wasNew, reviewedAt);   // fire and forget
             loadNextCard();                                 // clears isTransitioning
         };
 
@@ -2153,7 +2546,7 @@
     // The card's SRS state (PATCH cards) is the write that matters. The review_log
     // POST is analytics for the streak/history charts — if it fails, learning
     // progress is NOT lost, so it must never alarm the user.
-    async function persistReview(card, correct, patch, wasNew) {
+    async function persistReview(card, correct, patch, wasNew, reviewedAt) {
         const reviewRow = {
             user_id: currentUser.id,
             card_id: card.id,
@@ -2161,7 +2554,7 @@
             outcome: correct,
             was_new: wasNew,
             interval_after: patch.interval_days,
-            reviewed_at: new Date().toISOString()
+            reviewed_at: reviewedAt || new Date().toISOString()
         };
 
         try {
