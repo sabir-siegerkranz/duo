@@ -1401,7 +1401,10 @@
             });
             const res = await apiFetch(`${API_URL}/cards`, { method: "POST", headers, body: JSON.stringify(newBody) });
             const created = await res.json();
-            if (Array.isArray(created) && created[0]) allCards.push(created[0]);
+            if (Array.isArray(created) && created[0]) {
+                allCards.push(created[0]);
+                if (!emoji) autoAssignEmoji(created[0]);   // fill an emoji from the meaning, in the background
+            }
             logActivity("card_added", `${de} -> ${en}`);
             showToast("Card saved");
             clearAddForm();
@@ -2219,7 +2222,7 @@
         }
         paintSelection();
         const phrase = selectedPhrase();
-        pop._word = phrase; pop._lemma = phrase; pop._en = '';
+        pop._word = phrase; pop._lemma = phrase; pop._en = ''; pop._emoji = '';
         pop.querySelector('.wp-word').textContent = phrase;
         pop.querySelector('.wp-tr').textContent = '…';
         pop.classList.remove('hidden');
@@ -2230,7 +2233,8 @@
             if (d && d.translation) {
                 pop._lemma = lemmaWithArticle(d, phrase);
                 pop._en = d.translation;
-                pop.querySelector('.wp-word').textContent = pop._lemma;
+                pop._emoji = d.emoji || '';
+                pop.querySelector('.wp-word').textContent = (pop._emoji ? pop._emoji + ' ' : '') + pop._lemma;
                 pop.querySelector('.wp-tr').textContent = d.translation;
             } else {
                 pop.querySelector('.wp-tr').textContent = '(no translation)';
@@ -2252,7 +2256,7 @@
             return;
         }
         const row = {
-            de: de, en: en, emoji: null, hint: null,
+            de: de, en: en, emoji: String(pop._emoji || '').trim() || null, hint: null,
             ex_de: currentExampleText || null,
             user_id: currentUser.id, deck_id: activeDeckId,
             stage: 0, reps: 0, lapses: 0, interval_days: 0, ease: 2.5,
@@ -2261,7 +2265,10 @@
         try {
             const res = await apiFetch(`${API_URL}/cards`, { method: 'POST', headers, body: JSON.stringify(row) });
             const created = await res.json();
-            if (Array.isArray(created) && created[0]) allCards.push(created[0]);
+            if (Array.isArray(created) && created[0]) {
+                allCards.push(created[0]);
+                if (!row.emoji) autoAssignEmoji(created[0]);
+            }
             showToast('Added "' + de + '"');
         } catch (e) {
             showToast("Couldn't add card", true);
@@ -2290,10 +2297,30 @@
         clearAddForm();
         document.getElementById('input-de').value = lemma;
         document.getElementById('input-en').value = en;
+        document.getElementById('input-emoji').value = String(pop._emoji || '').trim();
         if (isFree) document.getElementById('input-hint').value = ex;
         else document.getElementById('input-ex-de').value = ex;
         handleInputChange();
         showView('view-add');
+    }
+
+    // give a freshly-added card an emoji from the word's meaning, in the background
+    async function autoAssignEmoji(card) {
+        if (!card || !card.id || (card.emoji && String(card.emoji).trim())) return;
+        try {
+            const res = await fetch(ENRICH_URL, {
+                method: 'POST', headers: FN_HEADERS,
+                body: JSON.stringify({ term: card.de, direction: 'de-en' })
+            });
+            if (!res.ok) return;
+            const d = await res.json();
+            const e = d && d.emoji && String(d.emoji).trim();
+            if (!e) return;
+            await fetch(`${API_URL}/cards?id=eq.${card.id}`, { method: 'PATCH', headers, body: JSON.stringify({ emoji: e }) });
+            card.emoji = e;
+            if (!document.getElementById('view-game').classList.contains('hidden') && currentCard && currentCard.id === card.id) renderCard(currentCard);
+            if (!document.getElementById('view-cards').classList.contains('hidden')) renderCardList();
+        } catch (e) {}
     }
 
     // ---- grammar / details panel on the Add-Card page ----
