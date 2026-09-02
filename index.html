@@ -90,7 +90,8 @@
         .flashcard-container {
             perspective: 1000px; height: 250px; margin: 10px 0;
             touch-action: none; transition: transform 0.18s ease, box-shadow 0.1s ease;
-            border-radius: 16px; user-select: none;
+            border-radius: 16px;
+            user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
         }
         .flashcard-container.swiping { transition: none; }
         .flashcard-container.cue-correct { box-shadow: 0 0 0 3px var(--success); }
@@ -328,6 +329,60 @@
             .card-hint { font-size: 18px; margin-top: 16px; }
             .swipe-hint { margin-top: 14px; font-size: 13px; }
         }
+
+        /* in-practice: undo, post-flip action row, tappable example words */
+        #btn-undo { width: auto; padding: 6px 10px; background: #e2e8f0; color: #475569; font-size: 15px; }
+        #btn-undo:disabled { opacity: 0.35; }
+        .card-actions { display: flex; gap: 20px; margin-top: 18px; }
+        .card-actions button {
+            width: auto; background: none; border: none; font-size: 21px; line-height: 1;
+            padding: 4px; color: var(--primary);
+        }
+        .card-actions button:active { transform: scale(0.9); }
+        .ex-translation { font-size: 13px; color: #94a3b8; margin-top: 12px; max-width: 92%; }
+        .ex-translation.hidden { display: none; }
+        .card-example { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+        .card-example .w {
+            cursor: pointer; border-radius: 3px; padding: 0 1px;
+            border-bottom: 1px dotted #cbd5e1;
+        }
+        .card-example .w.sel { background: #bfe3ff; color: #075985; border-bottom-color: transparent; }
+
+        #word-pop {
+            position: fixed; z-index: 150; background: #fff; border: 1px solid #e5e7eb;
+            border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+            padding: 10px 12px; width: 248px; max-width: calc(100vw - 24px);
+        }
+        #word-pop.hidden { display: none; }
+        #word-pop .wp-word { font-weight: 700; font-size: 15px; }
+        #word-pop .wp-tr { font-size: 13px; color: #475569; margin: 3px 0 9px; min-height: 17px; }
+        #word-pop .wp-actions { display: flex; gap: 8px; }
+        #word-pop .wp-actions button {
+            width: auto; flex: 1; background: #f1f5f9; color: #334155; border: none;
+            padding: 7px 8px; font-size: 13px; border-radius: 8px;
+        }
+        #word-pop .wp-open {
+            width: 100%; margin-top: 6px; background: #eef2ff; color: var(--primary);
+            border: none; padding: 7px 8px; font-size: 12px; border-radius: 8px;
+        }
+
+        .explain-view h4 {
+            margin: 15px 0 3px; font-size: 11px; letter-spacing: 0.05em;
+            text-transform: uppercase; color: #94a3b8;
+        }
+        .explain-view h4:first-child { margin-top: 0; }
+        .explain-view p { margin: 3px 0; font-size: 14px; line-height: 1.5; }
+        .explain-view .g-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13.5px; }
+        .explain-view .g-grid dt { color: #94a3b8; }
+        .explain-view ul { margin: 4px 0; padding-left: 18px; font-size: 14px; line-height: 1.55; }
+        .explain-view .ex-de { font-size: 14px; margin-top: 6px; }
+        .explain-view .ex-en { font-size: 13px; color: #94a3b8; }
+        .explain-foot { margin-top: 18px; font-size: 11px; color: #cbd5e1; text-align: center; }
+
+        #grammar-box { margin: 4px 0 14px; }
+        #btn-grammar { background: #eef2ff; color: var(--primary); font-size: 13px; padding: 9px; }
+        #grammar-out { margin-top: 10px; }
+        #grammar-out:empty { margin-top: 0; }
     </style>
 </head>
 <body>
@@ -335,6 +390,28 @@
 <div class="container">
     <div id="toast" class="toast">Card Saved!</div>
     <div id="ptr">↻</div>
+
+    <!-- TAP-A-WORD POPOVER (in practice) -->
+    <div id="word-pop" class="hidden">
+        <div class="wp-word"></div>
+        <div class="wp-tr"></div>
+        <div class="wp-actions">
+            <button type="button" id="wp-speak">🔊 Say</button>
+            <button type="button" id="wp-add">＋ Add</button>
+        </div>
+        <button type="button" id="wp-open" class="wp-open">✎ Add on full page…</button>
+    </div>
+
+    <!-- WORD EXPLANATION MODAL -->
+    <div id="explain-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeExplain()">
+        <div class="modal-card">
+            <div class="modal-head">
+                <strong id="explain-title">Information</strong>
+                <button class="modal-x" onclick="closeExplain()">✕</button>
+            </div>
+            <div id="explain-body" class="explain-view"></div>
+        </div>
+    </div>
 
     <!-- DECK PICKER MODAL -->
     <div id="deck-picker" class="modal-overlay hidden" onclick="if(event.target===this)closeDeckPicker()">
@@ -445,6 +522,7 @@
         <div class="card-box header">
             <button style="width: auto; padding: 6px 12px; background-color: #a0aec0;" onclick="exitGameToHome()">← Exit</button>
             <div style="font-weight: bold;" id="game-deck-title">Deck</div>
+            <button id="btn-undo" title="Undo last answer" onclick="undoLast()" disabled>↶ Undo</button>
         </div>
 
         <div class="card-box">
@@ -471,6 +549,12 @@
                             <div class="spk-line">
                                 <button class="spk hidden" id="spk-be" type="button">🔊</button>
                                 <span class="card-example" id="back-example">...</span>
+                            </div>
+                            <div class="ex-translation hidden" id="ex-translation"></div>
+                            <div class="card-actions" id="card-actions">
+                                <button type="button" id="act-explain" title="Word explanation">📖</button>
+                                <button type="button" id="act-translate" title="Translate the example">🔤</button>
+                                <button type="button" id="act-edit" title="Edit this card">✏️</button>
                             </div>
                         </div>
                     </div>
@@ -506,7 +590,7 @@
 
             <div class="form-group">
                 <label>Emoji (optional)</label>
-                <input type="text" id="input-emoji" maxlength="8" placeholder="🐶" style="width:76px; text-align:center; font-size:20px;">
+                <input type="text" id="input-emoji" maxlength="8" placeholder="–" style="width:76px; text-align:center; font-size:20px;">
             </div>
 
             <div class="form-group">
@@ -528,6 +612,10 @@
                     <input type="text" id="input-ex-de">
                 </div>
                 <div id="example-picker" class="ex-picker"></div>
+                <div id="grammar-box">
+                    <button type="button" id="btn-grammar" onclick="loadGrammarPanel()">📖 Grammar &amp; details</button>
+                    <div id="grammar-out" class="explain-view"></div>
+                </div>
             </div>
 
             <div id="free-deck-fields" class="hidden">
@@ -600,6 +688,11 @@
 
     const DAY_MS = 86400000;
     const MATURE_DAYS = 21;
+    const LEARN_SESSION_MAX = 4;   // max times a learning-phase card is re-shown within one session
+    // Intraday "learning steps" — how long a still-learning card waits before it's
+    // due again, by how many correct answers it has in the current streak.
+    // (Promotion to real SM-2 still needs streak >= 3 across >= 2 modes.)
+    const LEARN_STEPS_MS = [15 * 60000, 2 * 3600000, 8 * 3600000];
     const PENDING_KEY = "duocards_pending";
 
     // ------------------------------------------------------------------
@@ -688,6 +781,7 @@
         flushPending();
         initSwipe();
         initSpeakers();
+        initCardActions();
         initPullToRefresh();
     });
     window.addEventListener('online', flushPending);
@@ -891,12 +985,12 @@
 
         const right = document.createElement('div');
         right.className = 'deck-item-right';
-        const pending = deckPending(d.id);
-        if (pending > 0) {
+        const total = (deckCounts[d.id] && deckCounts[d.id].total) || 0;
+        if (total > 0) {
             const cb = document.createElement('span');
             cb.className = 'deck-count-badge';
-            cb.textContent = pending;
-            cb.title = pending + ' cards to review';
+            cb.textContent = total;
+            cb.title = total + ' cards in this deck';
             right.appendChild(cb);
         }
         const gear = document.createElement('button');
@@ -1074,9 +1168,8 @@
         document.getElementById('home-count-practiced').textContent = practiced;
         document.getElementById('home-count-learned').textContent = learned;
 
-        const dueCount = allCards.filter(isDue).length;
         const playBtn = document.getElementById('play-btn');
-        if (playBtn) playBtn.textContent = dueCount ? `▶ Play Deck (${dueCount} due)` : '▶ Play Deck';
+        if (playBtn) playBtn.textContent = '▶ Play Deck';
     }
 
     // ------------------------------------------------------------------
@@ -1095,6 +1188,7 @@
         document.getElementById('de-error').style.display = 'none';
         document.getElementById('btn-save-card').disabled = false;
         document.getElementById('example-picker').textContent = '';
+        document.getElementById('grammar-out').textContent = '';
     }
 
     function setAddMode(m) {
@@ -1106,6 +1200,7 @@
     function openAddCardModal() {
         if (!activeDeckId) return showToast("Select a deck first", true);
         editingCardId = null;
+        gameReturnAfterEdit = false;
         const deck = decks.find(d => d.id == activeDeckId);
         configureAddForm(deck && deck.type === 'free');
         document.getElementById('add-card-title').textContent = 'Add Card';
@@ -1135,6 +1230,7 @@
         document.getElementById('input-hint').value = c.hint || '';
         document.getElementById('input-emoji').value = c.emoji || '';
         document.getElementById('example-picker').textContent = '';
+        document.getElementById('grammar-out').textContent = '';
         document.getElementById('input-de').classList.remove('input-error');
         document.getElementById('de-error').style.display = 'none';
         document.getElementById('btn-save-card').disabled = false;
@@ -1144,6 +1240,12 @@
     function exitAddToHome() {
         editingCardId = null;
         bulkItems = [];
+        if (gameReturnAfterEdit) {
+            gameReturnAfterEdit = false;
+            showView('view-game');
+            if (currentCard) renderCard(currentCard);
+            return;
+        }
         showView('view-home');
         fetchDeckCounts().then(renderHomeDecks);
     }
@@ -1276,6 +1378,12 @@
                 showToast("Card updated");
                 editingCardId = null;
                 renderHomeStats();
+                if (gameReturnAfterEdit) {
+                    gameReturnAfterEdit = false;
+                    showView('view-game');
+                    if (currentCard) renderCard(currentCard);
+                    return;
+                }
                 renderCardList();
                 showView('view-cards');
                 return;
@@ -1293,11 +1401,19 @@
             });
             const res = await apiFetch(`${API_URL}/cards`, { method: "POST", headers, body: JSON.stringify(newBody) });
             const created = await res.json();
-            if (Array.isArray(created) && created[0]) allCards.push(created[0]);
+            if (Array.isArray(created) && created[0]) {
+                allCards.push(created[0]);
+                if (!emoji) autoAssignEmoji(created[0]);   // fill an emoji from the meaning, in the background
+            }
             logActivity("card_added", `${de} -> ${en}`);
             showToast("Card saved");
             clearAddForm();
             renderHomeStats();
+            if (gameReturnAfterEdit) {
+                gameReturnAfterEdit = false;
+                showView('view-game');
+                if (currentCard) renderCard(currentCard);
+            }
         } catch (e) {
             showToast("Save failed", true);
         }
@@ -1308,6 +1424,7 @@
     // ------------------------------------------------------------------
     function openManageCards() {
         if (!activeDeckId) return showToast("Select a deck first", true);
+        gameReturnAfterEdit = false;
         const d = decks.find(x => x.id == activeDeckId);
         document.getElementById('cards-deck-name').textContent = d ? d.name : '';
         renderCardList();
@@ -1526,10 +1643,11 @@
             Object.assign(card, patch);
             return patch;
         }
-        const patch = {   // still learning
+        const step = LEARN_STEPS_MS[Math.min(streak, LEARN_STEPS_MS.length) - 1];
+        const patch = {   // still learning — comes back later today, not tomorrow
             learn_streak: streak, learn_modes: modesStr,
             reps: 0, interval_days: 0,
-            due_at: new Date(now + DAY_MS).toISOString(),
+            due_at: new Date(now + step).toISOString(),
             last_reviewed_at: new Date(now).toISOString()
         };
         Object.assign(card, patch);
@@ -1669,6 +1787,9 @@
         document.getElementById('game-deck-title').textContent = deck ? deck.name : 'Practice';
         showView('view-game');
         currentCard = null;
+        lastGraded = null;
+        gameReturnAfterEdit = false;
+        updateUndoBtn();
         isTransitioning = false;
         await fetchActiveDeckCards();
         await buildSessionQueue();
@@ -1679,6 +1800,9 @@
     function exitGameToHome() {
         matchState = null;
         isTransitioning = false;
+        lastGraded = null;
+        hideWordPop();
+        closeExplain();
         document.getElementById('match-container').classList.add('hidden');
         showView('view-home');
         renderHomeStats();       // instant: in-memory cards were mutated by schedule() during practice
@@ -1700,6 +1824,8 @@
         cardEl.classList.add('no-anim');
         cardEl.classList.remove('flipped');
         resetCardPos();
+        hideWordPop();
+        updateUndoBtn();
 
         const next = sessionQueue.shift() || null;
 
@@ -1736,6 +1862,8 @@
 
     function showMatchRound(cards) {
         isTransitioning = true;   // block swipe/tap grading of the hidden flashcard
+        lastGraded = null;        // no per-card undo across a match round
+        updateUndoBtn();
         document.getElementById('game-container').classList.add('hidden');
         document.getElementById('empty-state').classList.add('hidden');
         document.getElementById('match-container').classList.remove('hidden');
@@ -1832,6 +1960,37 @@
         }).join('');
     }
 
+    // Strong / modal / auxiliary verbs whose finite forms don't follow the
+    // vowel-fuzz pattern ("mögen" -> "mag", "wissen" -> "weiß", "sein" -> "ist").
+    // Keyed by dictionary infinitive; value = alternation of forms to blank.
+    const IRREGULAR_VERBS = {
+        'sein': 'gewesen|wären|wärst|wäre|waren|warst|wart|war|seid|bist|sind|bin|ist|sei',
+        'haben': 'gehabt|hätten|hättest|hätte|hatten|hattest|hattet|hatte|habt|hast|hat|habe',
+        'werden': 'geworden|würden|würdest|würde|wurden|wurdest|wurdet|wurde|wirst|werdet|werde|wird',
+        'mögen': 'möchten|möchtest|möchtet|möchte|mögt|magst|mochten|mochte|mag',
+        'können': 'könnten|könntest|könntet|könnte|könnt|kannst|konnten|konnte|kann',
+        'wollen': 'wollten|wolltest|wolltet|wollte|wollt|willst|will',
+        'sollen': 'sollten|solltest|solltet|sollte|sollst|sollt|soll',
+        'müssen': 'müssten|müsstest|müsste|müsst|musstest|mussten|musste|musst|muss',
+        'dürfen': 'dürften|dürftest|dürfte|dürft|durften|durfte|darfst|darf',
+        'wissen': 'gewusst|wüssten|wüsste|wussten|wusstest|wusste|weißt|wisst|weiß',
+        'tun': 'getan|taten|tatest|tust|tut|tat|tue',
+        'nehmen': 'genommen|nähmen|nahmen|nahmst|nimmst|nehmt|nimmt|nahm|nehme',
+        'geben': 'gegeben|gäben|gabst|gibst|gebt|gibt|gab|gebe',
+        'essen': 'gegessen|aßen|isst|esst|esse|aß',
+        'sehen': 'gesehen|sähen|siehst|sahst|seht|sieht|sehe|sah',
+        'lesen': 'gelesen|läsen|liest|lest|lese|las',
+        'sprechen': 'gesprochen|sprächen|sprichst|sprachst|sprecht|spricht|sprach|spreche',
+        'treffen': 'getroffen|träfen|triffst|trafst|trefft|trifft|traf|treffe',
+        'helfen': 'geholfen|hülfen|hilfst|halfst|helft|hilft|half|helfe',
+        'gehen': 'gegangen|gingen|gingst|gehst|geht|ging|gehe',
+        'kommen': 'gekommen|kämen|kamen|kamst|kommst|kommt|kam|komme',
+        'bringen': 'gebracht|brächten|brachten|brachtest|bringst|bringt|brachte|bringe',
+        'denken': 'gedacht|dächten|dachten|dachtest|denkst|denkt|dachte|denke',
+        'fahren': 'gefahren|führen|fuhren|fuhrst|fährst|fahrt|fährt|fuhr|fahre',
+        'laufen': 'gelaufen|liefen|liefst|läufst|lauft|läuft|lief|laufe'
+    };
+
     function clozeHint(hint, germanWord) {
         if (!hint || !germanWord) return hint;
         const hadArticle = /^(der|die|das|ein|eine)\s/i.test(germanWord.trim());
@@ -1844,6 +2003,13 @@
         if (zuInf) core = zuInf[1] + zuInf[2];
         const esc = core.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         try {
+            // strong / modal / auxiliary verb: blank any of its finite forms
+            // ("mögen" -> "mag", "sein" -> "sind", "wissen" -> "weißt")
+            const irr = !hadArticle && IRREGULAR_VERBS[core.toLowerCase()];
+            if (irr) {
+                const ir = new RegExp('(^|[^\\p{L}])(' + irr + '|' + esc + ')(?![\\p{L}])', 'iu');
+                if (ir.test(hint)) return hint.replace(ir, '$1____');
+            }
             // multi-word headword ("Platz nehmen", "sich melden"): blank each
             // content word wherever it lands in the sentence
             if (/\s/.test(core)) {
@@ -1924,6 +2090,412 @@
         ['spk-fh', 'spk-be'].forEach(id => { const b = document.getElementById(id); if (b) b.onclick = stop(example); });
     }
 
+    // ==================================================================
+    // In-practice mechanics: undo, post-flip actions, tap-a-word
+    // ==================================================================
+
+    // ---- assist calls (example translation / word lookup / explanation) ----
+    const ASSIST_KEY = 'duocards_assist';
+    const ASSIST_TTL = 7 * 864e5;   // 7 days
+    function assistCacheGet(k) {
+        try {
+            const all = JSON.parse(localStorage.getItem(ASSIST_KEY) || '{}');
+            const e = all[k];
+            if (e && Date.now() - e.t < ASSIST_TTL) return e.d;
+        } catch (e) {}
+        return null;
+    }
+    function assistCachePut(k, d) {
+        try {
+            const all = JSON.parse(localStorage.getItem(ASSIST_KEY) || '{}');
+            all[k] = { t: Date.now(), d };
+            const keys = Object.keys(all);
+            if (keys.length > 200) keys.sort((a, b) => all[a].t - all[b].t).slice(0, keys.length - 200).forEach(x => delete all[x]);
+            localStorage.setItem(ASSIST_KEY, JSON.stringify(all));
+        } catch (e) {}
+    }
+    async function assistFetch(mode, payload) {
+        const key = mode + '|' + String(payload.text || payload.term || '').trim().toLowerCase();
+        const hit = assistCacheGet(key);
+        if (hit) return hit;
+        const res = await fetch(ENRICH_URL, { method: 'POST', headers: FN_HEADERS, body: JSON.stringify(Object.assign({ mode: mode }, payload)) });
+        if (!res.ok) throw new Error('assist ' + res.status);
+        const data = await res.json();
+        if (data && !data.error) assistCachePut(key, data);
+        return data;
+    }
+
+    // ---- tap-a-word popover (single word or a multi-word range) ----
+    let wSpans = [];          // the .w spans of the current example, in order
+    let selA = -1, selB = -1; // selection range endpoints (indices into wSpans)
+
+    function renderExampleWords(el, text) {
+        el.textContent = '';
+        wSpans = []; selA = selB = -1;
+        if (!text) return;
+        el.appendChild(document.createTextNode('"'));
+        text.split(/(\s+)/).forEach(tok => {
+            if (tok === '') return;
+            if (/^\s+$/.test(tok)) { el.appendChild(document.createTextNode(tok)); return; }
+            const lead = tok.match(/^[^\p{L}\p{N}]+/u);
+            const trail = tok.match(/[^\p{L}\p{N}]+$/u);
+            const a = lead ? lead[0].length : 0;
+            const b = trail ? tok.length - trail[0].length : tok.length;
+            if (b <= a) { el.appendChild(document.createTextNode(tok)); return; }
+            if (a) el.appendChild(document.createTextNode(tok.slice(0, a)));
+            const core = tok.slice(a, b);
+            const idx = wSpans.length;
+            const s = document.createElement('span');
+            s.className = 'w';
+            s.textContent = core;
+            // own tap detection: the card sits in a touch-action:none swipe zone,
+            // and iOS otherwise hijacks the tap for native text selection
+            let dx = 0, dy = 0, dt = 0;
+            s.addEventListener('pointerdown', (e) => { e.stopPropagation(); dx = e.clientX; dy = e.clientY; dt = e.timeStamp; });
+            s.addEventListener('pointerup', (e) => {
+                e.stopPropagation();
+                if (Math.hypot(e.clientX - dx, e.clientY - dy) < 12 && e.timeStamp - dt < 700) onWordTap(idx);
+            });
+            s.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); });
+            wSpans.push(s);
+            el.appendChild(s);
+            if (b < tok.length) el.appendChild(document.createTextNode(tok.slice(b)));
+        });
+        el.appendChild(document.createTextNode('"'));
+    }
+
+    function paintSelection() {
+        const lo = Math.min(selA, selB), hi = Math.max(selA, selB);
+        wSpans.forEach((s, i) => s.classList.toggle('sel', selA >= 0 && i >= lo && i <= hi));
+    }
+    function selectedPhrase() {
+        if (selA < 0) return '';
+        const lo = Math.min(selA, selB), hi = Math.max(selA, selB);
+        return wSpans.slice(lo, hi + 1).map(s => s.textContent).join(' ');
+    }
+
+    function hideWordPop() {
+        const pop = document.getElementById('word-pop');
+        if (pop) pop.classList.add('hidden');
+        selA = selB = -1;
+        paintSelection();
+    }
+
+    function positionWordPop(spanEl) {
+        const pop = document.getElementById('word-pop');
+        const r = spanEl.getBoundingClientRect();
+        const pw = pop.offsetWidth || 248;
+        const ph = pop.offsetHeight || 120;
+        let left = r.left + r.width / 2 - pw / 2;
+        left = Math.max(12, Math.min(left, window.innerWidth - pw - 12));
+        let top = r.bottom + 8;
+        if (top + ph > window.innerHeight - 12) top = r.top - ph - 8;
+        if (top < 12) top = 12;
+        pop.style.left = left + 'px';
+        pop.style.top = top + 'px';
+    }
+
+    function lemmaWithArticle(d, fallback) {
+        const lemma = (d && d.lemma) ? String(d.lemma).trim() : (fallback || '');
+        if (/^(der|die|das|ein|eine)\s/i.test(lemma)) return lemma;   // already has one
+        return (d && d.article ? d.article + ' ' : '') + lemma;
+    }
+
+    // tap rules:
+    //  - popover closed        -> select just that word
+    //  - tap OUTSIDE the range -> extend to it
+    //  - tap INSIDE a range    -> collapse the selection to that one word
+    //  - tap the only selected word again -> deselect (close)
+    async function onWordTap(i) {
+        const pop = document.getElementById('word-pop');
+        const open = !pop.classList.contains('hidden') && selA >= 0;
+        if (!open) {
+            selA = selB = i;
+        } else {
+            const lo = Math.min(selA, selB), hi = Math.max(selA, selB);
+            if (i >= lo && i <= hi) {
+                if (lo === hi) { hideWordPop(); return; }
+                selA = selB = i;
+            } else {
+                selB = i;
+            }
+        }
+        paintSelection();
+        const phrase = selectedPhrase();
+        pop._word = phrase; pop._lemma = phrase; pop._en = ''; pop._emoji = '';
+        pop.querySelector('.wp-word').textContent = phrase;
+        pop.querySelector('.wp-tr').textContent = '…';
+        pop.classList.remove('hidden');
+        positionWordPop(wSpans[i]);
+        try {
+            const d = await assistFetch('word', { term: phrase, context: currentExampleText });
+            if (pop._word !== phrase) return;   // selection changed while loading
+            if (d && d.translation) {
+                pop._lemma = lemmaWithArticle(d, phrase);
+                pop._en = d.translation;
+                pop._emoji = d.emoji || '';
+                pop.querySelector('.wp-word').textContent = (pop._emoji ? pop._emoji + ' ' : '') + pop._lemma;
+                pop.querySelector('.wp-tr').textContent = d.translation;
+            } else {
+                pop.querySelector('.wp-tr').textContent = '(no translation)';
+            }
+        } catch (e) {
+            if (pop._word === phrase) pop.querySelector('.wp-tr').textContent = '(lookup failed)';
+        }
+    }
+
+    async function quickAddWord() {
+        const pop = document.getElementById('word-pop');
+        const de = String(pop._lemma || pop._word || '').trim();
+        const en = String(pop._en || '').trim();
+        if (!de) return;
+        if (!en) { showToast('Still looking that word up…'); return; }
+        if (allCards.some(c => c.de && c.de.toLowerCase() === de.toLowerCase())) {
+            showToast('"' + de + '" is already in this deck');
+            hideWordPop();
+            return;
+        }
+        const row = {
+            de: de, en: en, emoji: String(pop._emoji || '').trim() || null, hint: null,
+            ex_de: currentExampleText || null,
+            user_id: currentUser.id, deck_id: activeDeckId,
+            stage: 0, reps: 0, lapses: 0, interval_days: 0, ease: 2.5,
+            due_at: new Date().toISOString()
+        };
+        try {
+            const res = await apiFetch(`${API_URL}/cards`, { method: 'POST', headers, body: JSON.stringify(row) });
+            const created = await res.json();
+            if (Array.isArray(created) && created[0]) {
+                allCards.push(created[0]);
+                if (!row.emoji) autoAssignEmoji(created[0]);
+            }
+            showToast('Added "' + de + '"');
+        } catch (e) {
+            showToast("Couldn't add card", true);
+        }
+        hideWordPop();
+    }
+
+    // open the full Add-Card page pre-filled from the current selection,
+    // so the user can pick a different example, tweak it, or read the grammar
+    function openAddFromSelection() {
+        const pop = document.getElementById('word-pop');
+        const lemma = String(pop._lemma || pop._word || '').trim();
+        const en = String(pop._en || '').trim();
+        if (!lemma) return;
+        const ex = currentExampleText || '';
+        hideWordPop();
+        editingCardId = null;
+        gameReturnAfterEdit = true;
+        const deck = decks.find(d => d.id == activeDeckId);
+        const isFree = deck && deck.type === 'free';
+        configureAddForm(isFree);
+        document.getElementById('add-card-title').textContent = 'Add Card';
+        document.getElementById('btn-save-card').textContent = 'Save Card';
+        document.getElementById('add-mode-seg').classList.add('hidden');
+        setAddMode('single');
+        clearAddForm();
+        document.getElementById('input-de').value = lemma;
+        document.getElementById('input-en').value = en;
+        document.getElementById('input-emoji').value = String(pop._emoji || '').trim();
+        if (isFree) document.getElementById('input-hint').value = ex;
+        else document.getElementById('input-ex-de').value = ex;
+        handleInputChange();
+        showView('view-add');
+    }
+
+    // give a freshly-added card an emoji from the word's meaning, in the background
+    async function autoAssignEmoji(card) {
+        if (!card || !card.id || (card.emoji && String(card.emoji).trim())) return;
+        try {
+            const res = await fetch(ENRICH_URL, {
+                method: 'POST', headers: FN_HEADERS,
+                body: JSON.stringify({ term: card.de, direction: 'de-en' })
+            });
+            if (!res.ok) return;
+            const d = await res.json();
+            const e = d && d.emoji && String(d.emoji).trim();
+            if (!e) return;
+            await fetch(`${API_URL}/cards?id=eq.${card.id}`, { method: 'PATCH', headers, body: JSON.stringify({ emoji: e }) });
+            card.emoji = e;
+            if (!document.getElementById('view-game').classList.contains('hidden') && currentCard && currentCard.id === card.id) renderCard(currentCard);
+            if (!document.getElementById('view-cards').classList.contains('hidden')) renderCardList();
+        } catch (e) {}
+    }
+
+    // ---- grammar / details panel on the Add-Card page ----
+    async function loadGrammarPanel() {
+        const term = document.getElementById('input-de').value.trim();
+        const out = document.getElementById('grammar-out');
+        if (!term) { out.textContent = 'Enter the German word first.'; return; }
+        out.textContent = 'Loading…';
+        try {
+            const d = await assistFetch('explain', { term });
+            if (!d || d.error || !d.meaning) throw new Error('bad');
+            renderExplainInto(out, d);
+        } catch (e) {
+            out.textContent = 'Could not load details — try again in a moment.';
+        }
+    }
+
+    // ---- translate the example sentence ----
+    async function toggleExampleTranslation() {
+        const box = document.getElementById('ex-translation');
+        if (!box.classList.contains('hidden')) { box.classList.add('hidden'); box.textContent = ''; return; }
+        const ex = currentExampleText;
+        if (!ex) return;
+        box.classList.remove('hidden');
+        box.textContent = '…';
+        try {
+            const d = await assistFetch('sentence', { text: ex });
+            box.textContent = (d && d.translation) ? d.translation : '(translation unavailable)';
+        } catch (e) {
+            box.textContent = '(translation unavailable)';
+        }
+    }
+
+    // ---- word explanation modal ----
+    async function openExplain() {
+        if (!currentCard) return;
+        const modal = document.getElementById('explain-modal');
+        const body = document.getElementById('explain-body');
+        const term = currentCard.de || '';
+        document.getElementById('explain-title').textContent = 'Information about "' + term + '"';
+        body.textContent = '';
+        const load = document.createElement('p');
+        load.style.color = '#94a3b8';
+        load.textContent = 'Loading…';
+        body.appendChild(load);
+        modal.classList.remove('hidden');
+        try {
+            const d = await assistFetch('explain', { term });
+            if (!d || d.error || !d.meaning) throw new Error('bad');
+            renderExplain(d);
+        } catch (e) {
+            body.textContent = '';
+            const p = document.createElement('p');
+            p.style.color = '#ef4444';
+            p.textContent = 'Could not load an explanation — try again in a moment.';
+            body.appendChild(p);
+        }
+    }
+    function renderExplain(d) {
+        if (d.headword) document.getElementById('explain-title').textContent = 'Information about "' + d.headword + '"';
+        renderExplainInto(document.getElementById('explain-body'), d);
+    }
+    function renderExplainInto(body, d) {
+        body.textContent = '';
+        const h = (t) => { const e = document.createElement('h4'); e.textContent = t; body.appendChild(e); };
+        const p = (t, cls) => { const e = document.createElement('p'); if (cls) e.className = cls; e.textContent = t; body.appendChild(e); };
+        h('Meaning' + (d.pos ? ' · ' + d.pos : ''));
+        p(d.meaning || '');
+        if (Array.isArray(d.grammar) && d.grammar.length) {
+            h('Grammar');
+            const dl = document.createElement('dl');
+            dl.className = 'g-grid';
+            d.grammar.forEach(g => {
+                const dt = document.createElement('dt'); dt.textContent = g.label;
+                const dd = document.createElement('dd'); dd.textContent = g.value;
+                dl.appendChild(dt); dl.appendChild(dd);
+            });
+            body.appendChild(dl);
+        }
+        if (Array.isArray(d.synonyms) && d.synonyms.length) {
+            h('Synonyms');
+            const ul = document.createElement('ul');
+            d.synonyms.forEach(s => {
+                const li = document.createElement('li');
+                li.textContent = s.de + (s.en ? ' — ' + s.en : '');
+                ul.appendChild(li);
+            });
+            body.appendChild(ul);
+        }
+        if (d.usage) { h('Usage'); p(d.usage); }
+        if (Array.isArray(d.examples) && d.examples.length) {
+            h('Examples');
+            d.examples.forEach(e => {
+                p(e.de, 'ex-de');
+                if (e.en) p(e.en, 'ex-en');
+            });
+        }
+        const foot = document.createElement('div');
+        foot.className = 'explain-foot';
+        foot.textContent = 'AI-generated — may contain mistakes.';
+        body.appendChild(foot);
+    }
+    function closeExplain() { document.getElementById('explain-modal').classList.add('hidden'); }
+
+    // ---- edit the current card without leaving the session ----
+    let gameReturnAfterEdit = false;
+    function editCurrentCardInGame() {
+        if (!currentCard) return;
+        gameReturnAfterEdit = true;
+        hideWordPop();
+        openEditCard(currentCard.id);
+    }
+
+    // ---- one-step undo of the last graded answer ----
+    const SNAP_KEYS = ['reps', 'lapses', 'interval_days', 'ease', 'due_at', 'learn_streak', 'learn_modes', 'last_reviewed_at', '__seen'];
+    let lastGraded = null;   // { card, snap, reviewedAt }
+
+    function snapshotCard(card) {
+        const s = {};
+        SNAP_KEYS.forEach(k => { s[k] = card[k]; });
+        return s;
+    }
+    function updateUndoBtn() {
+        const b = document.getElementById('btn-undo');
+        if (b) b.disabled = !lastGraded || isTransitioning;
+    }
+    function undoLast() {
+        if (!lastGraded || isTransitioning) return;
+        const g = lastGraded;
+        lastGraded = null;
+        let i;
+        while ((i = sessionQueue.indexOf(g.card)) !== -1) sessionQueue.splice(i, 1);
+        if (currentCard && currentCard !== g.card) sessionQueue.unshift(currentCard);
+        Object.assign(g.card, g.snap);
+        currentCard = g.card;
+        const el = document.getElementById('card');
+        el.classList.add('no-anim');
+        el.classList.remove('flipped');
+        resetCardPos();
+        document.getElementById('match-container').classList.add('hidden');
+        document.getElementById('game-container').classList.remove('hidden');
+        document.getElementById('empty-state').classList.add('hidden');
+        renderCard(g.card);
+        setTimeout(() => el.classList.remove('no-anim'), 50);
+        revertReview(g.card, g.snap, g.reviewedAt);
+        updateUndoBtn();
+    }
+    function revertReview(card, snap, reviewedAt) {
+        const patch = {};
+        ['reps', 'lapses', 'interval_days', 'ease', 'due_at', 'learn_streak', 'learn_modes', 'last_reviewed_at'].forEach(k => {
+            patch[k] = snap[k] === undefined ? null : snap[k];
+        });
+        fetch(`${API_URL}/cards?id=eq.${card.id}`, { method: 'PATCH', headers, body: JSON.stringify(patch) }).catch(() => {});
+        if (reviewedAt) {
+            fetch(`${API_URL}/review_log?card_id=eq.${card.id}&reviewed_at=eq.${encodeURIComponent(reviewedAt)}`, { method: 'DELETE', headers }).catch(() => {});
+        }
+    }
+
+    function initCardActions() {
+        const stop = (fn) => (e) => { e.stopPropagation(); e.preventDefault(); fn(); };
+        const wire = (id, fn) => { const b = document.getElementById(id); if (b) b.addEventListener('click', stop(fn)); };
+        wire('act-explain', openExplain);
+        wire('act-translate', toggleExampleTranslation);
+        wire('act-edit', editCurrentCardInGame);
+        wire('wp-speak', () => { const p = document.getElementById('word-pop'); if (p && p._word) { warmTTS(); speakGerman(p._word); } });
+        wire('wp-add', quickAddWord);
+        wire('wp-open', openAddFromSelection);
+        document.addEventListener('click', (e) => {
+            const pop = document.getElementById('word-pop');
+            if (!pop || pop.classList.contains('hidden')) return;
+            if (pop.contains(e.target)) return;
+            hideWordPop();
+        });
+    }
+
     function renderCard(card) {
         const deck = decks.find(d => d.id == activeDeckId);
         const dir = deck ? (deck.practice_direction || 'random') : 'random';
@@ -1945,7 +2517,13 @@
         document.getElementById('front-text').textContent = frontText;
         document.getElementById('front-hint').textContent = frontHint;
         document.getElementById('back-text').textContent = backText;
-        document.getElementById('back-example').textContent = hint ? '"' + hint + '"' : '';
+        renderExampleWords(document.getElementById('back-example'), hint);
+
+        // reset the in-practice extras for the new card
+        hideWordPop();
+        const exTr = document.getElementById('ex-translation');
+        exTr.textContent = ''; exTr.classList.add('hidden');
+        document.getElementById('act-translate').style.display = hint ? '' : 'none';
 
         // replay speakers: show one next to whichever text is German
         document.getElementById('spk-fw').classList.toggle('hidden', !learningFront);
@@ -1965,6 +2543,7 @@
         const el = document.getElementById('card');
         el.classList.toggle('flipped');
         const showingBack = el.classList.contains('flipped');
+        if (!showingBack) hideWordPop();
         if (showingBack === germanOnBack) speakGerman(currentGermanText);
     }
 
@@ -2057,6 +2636,8 @@
     function onCardTap() {
         if (suppressNextClick) { suppressNextClick = false; return; }
         if (isTransitioning || !currentCard) return;
+        const pop = document.getElementById('word-pop');
+        if (pop && !pop.classList.contains('hidden')) { hideWordPop(); return; }  // first tap just dismisses the popover
         flipCard();
     }
 
@@ -2072,13 +2653,26 @@
         const mode = currentMode;
         const finish = () => {
             const wasNew = (Number(card.reps) || 0) === 0 && (Number(card.lapses) || 0) === 0;
+            const snap = snapshotCard(card);
+            const reviewedAt = new Date().toISOString();
             const patch = gradeCard(card, correct, mode);
+            card.__seen = (card.__seen || 0) + 1;
+            lastGraded = { card: card, snap: snap, reviewedAt: reviewedAt };
+
             if (!correct) {
-                // bring the card back later in the same session
+                // failed — bring it back within a few cards, while it's fresh
                 const pos = Math.min(4, sessionQueue.length);
                 sessionQueue.splice(pos, 0, card);
+            } else if ((Number(patch.reps) || 0) === 0 && card.__seen < LEARN_SESSION_MAX) {
+                // answered right but still in the learning phase: re-expose it
+                // 5–10 cards later this session instead of not until tomorrow,
+                // so a new word can build its streak (and hit >=2 modes) in one sitting
+                const lo = Math.min(5, sessionQueue.length);
+                const hi = Math.min(10, sessionQueue.length);
+                const at = lo + Math.floor(Math.random() * (hi - lo + 1));
+                sessionQueue.splice(at, 0, card);
             }
-            persistReview(card, correct, patch, wasNew);   // fire and forget
+            persistReview(card, correct, patch, wasNew, reviewedAt);   // fire and forget
             loadNextCard();                                 // clears isTransitioning
         };
 
@@ -2105,7 +2699,7 @@
     // The card's SRS state (PATCH cards) is the write that matters. The review_log
     // POST is analytics for the streak/history charts — if it fails, learning
     // progress is NOT lost, so it must never alarm the user.
-    async function persistReview(card, correct, patch, wasNew) {
+    async function persistReview(card, correct, patch, wasNew, reviewedAt) {
         const reviewRow = {
             user_id: currentUser.id,
             card_id: card.id,
@@ -2113,7 +2707,7 @@
             outcome: correct,
             was_new: wasNew,
             interval_after: patch.interval_days,
-            reviewed_at: new Date().toISOString()
+            reviewed_at: reviewedAt || new Date().toISOString()
         };
 
         try {
