@@ -1844,6 +1844,7 @@
             es.classList.remove('hidden');
             es.textContent = emptyStateMessage();
             isTransitioning = false;
+            updateUndoBtn();
             return;
         }
 
@@ -1853,6 +1854,7 @@
 
         setTimeout(() => cardEl.classList.remove('no-anim'), 50);
         isTransitioning = false;
+        updateUndoBtn();
     }
 
     // ------------------------------------------------------------------
@@ -2050,6 +2052,20 @@
                             return out;
                         }
                     }
+                }
+            }
+            // -ern / -eln verbs ("erinnern" -> "erinnere", "ändern" -> "ändert",
+            // "sammeln" -> "sammelt"): the infinitive ends in -n, not -en, so none
+            // of the -en branches above fire. Blank the stem + its inflection.
+            if (!hadArticle && /(er|el)n$/i.test(core) && core.length >= 4) {
+                const vstem = core.replace(/n$/i, '');            // "erinner", "änder", "sammel"
+                const er = new RegExp('(^|[^\\p{L}])(' + vowelFuzz(vstem.slice(0, 6)) + '[\\p{L}]{0,3})(?![\\p{L}])', 'iu');
+                if (er.test(hint)) return hint.replace(er, '$1____');
+                // 1st-person singular of -eln drops the pre-l "e": "sammeln" -> "sammle"
+                const alt = vstem.replace(/el$/i, 'l');
+                if (alt !== vstem) {
+                    const ar = new RegExp('(^|[^\\p{L}])(' + vowelFuzz(alt.slice(0, 6)) + '[\\p{L}]{0,3})(?![\\p{L}])', 'iu');
+                    if (ar.test(hint)) return hint.replace(ar, '$1____');
                 }
             }
             // long words (>=4): also blank inside a compound, keeping the prefix
