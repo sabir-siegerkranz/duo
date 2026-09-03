@@ -640,6 +640,8 @@
     <div id="view-cards" class="card-box hidden">
         <button style="width: auto; padding: 6px 12px; background-color: #a0aec0; margin-bottom: 12px;" onclick="exitCardsToHome()">← Back</button>
         <h3 style="margin-top:0;">Manage Cards — <span id="cards-deck-name"></span></h3>
+        <input type="text" id="cards-search" placeholder="Search cards…" oninput="renderCardList()" autocomplete="off" style="margin-bottom: 8px;">
+        <div id="cards-search-count" style="font-size:12px; color:#94a3b8; margin-bottom:6px;"></div>
         <div id="card-list"></div>
     </div>
 
@@ -1427,6 +1429,7 @@
         gameReturnAfterEdit = false;
         const d = decks.find(x => x.id == activeDeckId);
         document.getElementById('cards-deck-name').textContent = d ? d.name : '';
+        document.getElementById('cards-search').value = '';
         renderCardList();
         showView('view-cards');
     }
@@ -1440,9 +1443,22 @@
     function renderCardList() {
         const wrap = document.getElementById('card-list');
         wrap.textContent = '';
+        const countEl = document.getElementById('cards-search-count');
+        if (countEl) countEl.textContent = '';
         if (!allCards.length) { wrap.textContent = 'No cards yet.'; return; }
 
-        allCards.slice().sort((a, b) => (a.de || '').localeCompare(b.de || '')).forEach(c => {
+        const searchEl = document.getElementById('cards-search');
+        const q = ((searchEl && searchEl.value) || '').trim().toLowerCase();
+        let rows = allCards.slice().sort((a, b) => (a.de || '').localeCompare(b.de || ''));
+        if (q) {
+            rows = rows.filter(c =>
+                ((c.de || '') + ' ' + (c.en || '') + ' ' + (c.emoji || '') + ' ' +
+                 (c.ex_de || '') + ' ' + (c.hint || '')).toLowerCase().includes(q));
+            if (countEl) countEl.textContent = rows.length + ' of ' + allCards.length;
+        }
+        if (!rows.length) { wrap.textContent = 'No cards match “' + q + '”.'; return; }
+
+        rows.forEach(c => {
             const row = document.createElement('div');
             row.className = 'card-row';
 
