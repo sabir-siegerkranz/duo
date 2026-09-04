@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="theme-color" content="#00a8ff">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -20,6 +23,15 @@
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+        /* Installed-PWA feel: html is a fixed viewport, body is the only scroller,
+           so the page can't rubber-band past its content, pan sideways, or zoom. */
+        html {
+            height: 100%;
+            overflow: hidden;
+            touch-action: pan-y;
+            -webkit-text-size-adjust: 100%;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: var(--bg);
@@ -29,7 +41,11 @@
             display: flex;
             justify-content: center;
             align-items: flex-start;
-            min-height: 100vh;
+            height: 100%;
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior: none;
+            -webkit-overflow-scrolling: touch;
         }
 
         .container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 12px; }
