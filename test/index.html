@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="theme-color" content="#00a8ff">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -20,6 +23,15 @@
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+        /* Installed-PWA feel: html is a fixed viewport, body is the only scroller,
+           so the page can't rubber-band past its content, pan sideways, or zoom. */
+        html {
+            height: 100%;
+            overflow: hidden;
+            touch-action: pan-y;
+            -webkit-text-size-adjust: 100%;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: var(--bg);
@@ -29,7 +41,11 @@
             display: flex;
             justify-content: center;
             align-items: flex-start;
-            min-height: 100vh;
+            height: 100%;
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior: none;
+            -webkit-overflow-scrolling: touch;
         }
 
         .container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 12px; }
@@ -348,6 +364,12 @@
         }
         .card-example .w.sel { background: #bfe3ff; color: #075985; border-bottom-color: transparent; }
 
+        /* Any German text inside a .de-pick region can be selected (native
+           selection) to look up / add a word — grammar panel, explain modal,
+           add-card example chips, etc. */
+        .de-pick, .de-pick * { -webkit-user-select: text; user-select: text; -webkit-touch-callout: none; }
+        .de-pick ::selection { background: #bfe3ff; color: #075985; }
+
         #word-pop {
             position: fixed; z-index: 150; background: #fff; border: 1px solid #e5e7eb;
             border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.18);
@@ -409,7 +431,7 @@
                 <strong id="explain-title">Information</strong>
                 <button class="modal-x" onclick="closeExplain()">✕</button>
             </div>
-            <div id="explain-body" class="explain-view"></div>
+            <div id="explain-body" class="explain-view de-pick"></div>
         </div>
     </div>
 
@@ -611,10 +633,10 @@
                     <label>Example Sentence (German):</label>
                     <input type="text" id="input-ex-de">
                 </div>
-                <div id="example-picker" class="ex-picker"></div>
+                <div id="example-picker" class="ex-picker de-pick"></div>
                 <div id="grammar-box">
                     <button type="button" id="btn-grammar" onclick="loadGrammarPanel()">📖 Grammar &amp; details</button>
-                    <div id="grammar-out" class="explain-view"></div>
+                    <div id="grammar-out" class="explain-view de-pick"></div>
                 </div>
             </div>
 
@@ -785,6 +807,7 @@
         initSpeakers();
         initCardActions();
         initPullToRefresh();
+        initDePick();
     });
     window.addEventListener('online', flushPending);
     if ('serviceWorker' in navigator) {
@@ -2221,9 +2244,9 @@
         paintSelection();
     }
 
-    function positionWordPop(spanEl) {
+    function positionWordPop(spanEl) { positionWordPopAt(spanEl.getBoundingClientRect()); }
+    function positionWordPopAt(r) {
         const pop = document.getElementById('word-pop');
-        const r = spanEl.getBoundingClientRect();
         const pw = pop.offsetWidth || 248;
         const ph = pop.offsetHeight || 120;
         let left = r.left + r.width / 2 - pw / 2;
@@ -2261,14 +2284,22 @@
             }
         }
         paintSelection();
-        const phrase = selectedPhrase();
-        pop._word = phrase; pop._lemma = phrase; pop._en = ''; pop._emoji = '';
+        await populateWordPop(selectedPhrase(), wSpans[i].getBoundingClientRect(), currentExampleText);
+    }
+
+    // Fill + show the word popover for an arbitrary phrase, anchored at a rect.
+    // Shared by the practice-card tap path and the native-selection (.de-pick) path.
+    async function populateWordPop(phrase, anchorRect, context) {
+        phrase = (phrase || '').replace(/\s+/g, ' ').trim();
+        if (!phrase) return;
+        const pop = document.getElementById('word-pop');
+        pop._word = phrase; pop._lemma = phrase; pop._en = ''; pop._emoji = ''; pop._ctx = context || '';
         pop.querySelector('.wp-word').textContent = phrase;
         pop.querySelector('.wp-tr').textContent = '…';
         pop.classList.remove('hidden');
-        positionWordPop(wSpans[i]);
+        positionWordPopAt(anchorRect);
         try {
-            const d = await assistFetch('word', { term: phrase, context: currentExampleText });
+            const d = await assistFetch('word', { term: phrase, context: context || '' });
             if (pop._word !== phrase) return;   // selection changed while loading
             if (d && d.translation) {
                 pop._lemma = lemmaWithArticle(d, phrase);
@@ -2284,6 +2315,34 @@
         }
     }
 
+    // Native text selection anywhere inside a .de-pick region -> same popover.
+    function dePickHost(node) {
+        const el = node && (node.nodeType === 1 ? node : node.parentElement);
+        return el ? el.closest('.de-pick') : null;
+    }
+    function dePickActive() {
+        const sel = window.getSelection && window.getSelection();
+        return !!(sel && !sel.isCollapsed && dePickHost(sel.anchorNode));
+    }
+    function runDePick() {
+        const sel = window.getSelection && window.getSelection();
+        if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+        const raw = sel.toString().trim();
+        if (!raw || raw.length > 60 || !/\p{L}/u.test(raw)) return;
+        const host = dePickHost(sel.anchorNode);
+        if (!host || dePickHost(sel.focusNode) !== host) return;
+        const rect = sel.getRangeAt(0).getBoundingClientRect();
+        if (!rect || (!rect.width && !rect.height)) return;
+        populateWordPop(raw, rect, (host.textContent || '').trim().slice(0, 280));
+    }
+    function initDePick() {
+        let t = null;
+        const trigger = () => { clearTimeout(t); t = setTimeout(runDePick, 20); };
+        document.addEventListener('selectionchange', trigger);
+        document.addEventListener('mouseup', trigger);
+        document.addEventListener('touchend', trigger);
+    }
+
     async function quickAddWord() {
         const pop = document.getElementById('word-pop');
         const de = String(pop._lemma || pop._word || '').trim();
@@ -2297,7 +2356,7 @@
         }
         const row = {
             de: de, en: en, emoji: String(pop._emoji || '').trim() || null, hint: null,
-            ex_de: currentExampleText || null,
+            ex_de: (pop._ctx || currentExampleText) || null,
             user_id: currentUser.id, deck_id: activeDeckId,
             stage: 0, reps: 0, lapses: 0, interval_days: 0, ease: 2.5,
             due_at: new Date().toISOString()
@@ -2323,7 +2382,7 @@
         const lemma = String(pop._lemma || pop._word || '').trim();
         const en = String(pop._en || '').trim();
         if (!lemma) return;
-        const ex = currentExampleText || '';
+        const ex = (pop._ctx || currentExampleText) || '';
         hideWordPop();
         editingCardId = null;
         gameReturnAfterEdit = true;
@@ -2532,6 +2591,7 @@
             const pop = document.getElementById('word-pop');
             if (!pop || pop.classList.contains('hidden')) return;
             if (pop.contains(e.target)) return;
+            if (dePickActive() || dePickHost(e.target)) return;  // keep it while selecting German text
             hideWordPop();
         });
     }
