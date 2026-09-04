@@ -2548,8 +2548,11 @@
         const frontText = learningFront ? card.de : card.en;
         const backText = learningFront ? card.en : card.de;
 
-        // front shows the non-German side -> blank the German word in the example
-        const frontHint = learningFront ? hint : clozeHint(hint, card.de);
+        // Standard decks: the hint is a German example sentence, so blank the
+        // target word when the non-German side is on the front. Free decks: the
+        // hint is a plain user clue (card.de may not even be German) — never cloze it.
+        const isFreeDeck = deck && deck.type === 'free';
+        const frontHint = (learningFront || isFreeDeck) ? hint : clozeHint(hint, card.de);
         const emo = card.emoji || '';
 
         document.getElementById('front-emoji').textContent = emo;
