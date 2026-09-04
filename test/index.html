@@ -1146,12 +1146,17 @@
         renderHomeStats();
     }
 
+    // Home buckets follow what practice will actually show you, not lifetime state:
+    // "To Learn" = never-promoted cards (reps 0, including lapsed ones) PLUS any
+    // promoted card whose review has come due again. "Practiced" / "Learned" only
+    // hold cards that are settled (promoted and not currently due).
     function srsState(c) {
         const iv = Number(c.interval_days) || 0;
         const reps = Number(c.reps) || 0;
-        if (reps === 0) return 'new';           // still in the learning phase = "To Learn"
-        if (iv >= MATURE_DAYS) return 'mature'; // "Learned"
-        return 'young';                          // "Practiced"
+        if (reps === 0) return 'new';           // still in the learning phase
+        if (isDue(c)) return 'new';             // due for repetition -> back to "To Learn"
+        if (iv >= MATURE_DAYS) return 'mature'; // "Learned" (mature, not due)
+        return 'young';                          // "Practiced" (maturing, not due)
     }
 
     function isDue(c) {
