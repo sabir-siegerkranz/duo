@@ -1146,17 +1146,20 @@
         renderHomeStats();
     }
 
-    // Home buckets follow what practice will actually show you, not lifetime state:
-    // "To Learn" = never-promoted cards (reps 0, including lapsed ones) PLUS any
-    // promoted card whose review has come due again. "Practiced" / "Learned" only
-    // hold cards that are settled (promoted and not currently due).
+    // Home buckets mirror what a practice session queues right now, not lifetime
+    // state: "To Learn" = a fresh never-graded card, OR any graded card that is
+    // due again. A card still in the learning phase but resting in its intraday
+    // cooldown (not due yet) sits in "Practiced" until its timer elapses, then
+    // flips back. "Learned" = mature and not due.
     function srsState(c) {
         const iv = Number(c.interval_days) || 0;
         const reps = Number(c.reps) || 0;
-        if (reps === 0) return 'new';           // still in the learning phase
-        if (isDue(c)) return 'new';             // due for repetition -> back to "To Learn"
+        const lapses = Number(c.lapses) || 0;
+        const streak = Number(c.learn_streak) || 0;
+        if (reps === 0 && lapses === 0 && streak === 0) return 'new'; // fresh, always queued
+        if (isDue(c)) return 'new';             // graded and due for repetition
         if (iv >= MATURE_DAYS) return 'mature'; // "Learned" (mature, not due)
-        return 'young';                          // "Practiced" (maturing, not due)
+        return 'young';                          // "Practiced" / cooling down, not due
     }
 
     function isDue(c) {
@@ -2545,8 +2548,11 @@
         const frontText = learningFront ? card.de : card.en;
         const backText = learningFront ? card.en : card.de;
 
-        // front shows the non-German side -> blank the German word in the example
-        const frontHint = learningFront ? hint : clozeHint(hint, card.de);
+        // Standard decks: the hint is a German example sentence, so blank the
+        // target word when the non-German side is on the front. Free decks: the
+        // hint is a plain user clue (card.de may not even be German) — never cloze it.
+        const isFreeDeck = deck && deck.type === 'free';
+        const frontHint = (learningFront || isFreeDeck) ? hint : clozeHint(hint, card.de);
         const emo = card.emoji || '';
 
         document.getElementById('front-emoji').textContent = emo;
