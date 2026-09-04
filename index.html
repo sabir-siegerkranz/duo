@@ -640,6 +640,8 @@
     <div id="view-cards" class="card-box hidden">
         <button style="width: auto; padding: 6px 12px; background-color: #a0aec0; margin-bottom: 12px;" onclick="exitCardsToHome()">← Back</button>
         <h3 style="margin-top:0;">Manage Cards — <span id="cards-deck-name"></span></h3>
+        <input type="text" id="cards-search" placeholder="Search cards…" oninput="renderCardList()" autocomplete="off" style="margin-bottom: 8px;">
+        <div id="cards-search-count" style="font-size:12px; color:#94a3b8; margin-bottom:6px;"></div>
         <div id="card-list"></div>
     </div>
 
@@ -1144,12 +1146,17 @@
         renderHomeStats();
     }
 
+    // Home buckets follow what practice will actually show you, not lifetime state:
+    // "To Learn" = never-promoted cards (reps 0, including lapsed ones) PLUS any
+    // promoted card whose review has come due again. "Practiced" / "Learned" only
+    // hold cards that are settled (promoted and not currently due).
     function srsState(c) {
         const iv = Number(c.interval_days) || 0;
         const reps = Number(c.reps) || 0;
-        if (reps === 0) return 'new';           // still in the learning phase = "To Learn"
-        if (iv >= MATURE_DAYS) return 'mature'; // "Learned"
-        return 'young';                          // "Practiced"
+        if (reps === 0) return 'new';           // still in the learning phase
+        if (isDue(c)) return 'new';             // due for repetition -> back to "To Learn"
+        if (iv >= MATURE_DAYS) return 'mature'; // "Learned" (mature, not due)
+        return 'young';                          // "Practiced" (maturing, not due)
     }
 
     function isDue(c) {
@@ -1427,6 +1434,7 @@
         gameReturnAfterEdit = false;
         const d = decks.find(x => x.id == activeDeckId);
         document.getElementById('cards-deck-name').textContent = d ? d.name : '';
+        document.getElementById('cards-search').value = '';
         renderCardList();
         showView('view-cards');
     }
@@ -1440,9 +1448,22 @@
     function renderCardList() {
         const wrap = document.getElementById('card-list');
         wrap.textContent = '';
+        const countEl = document.getElementById('cards-search-count');
+        if (countEl) countEl.textContent = '';
         if (!allCards.length) { wrap.textContent = 'No cards yet.'; return; }
 
-        allCards.slice().sort((a, b) => (a.de || '').localeCompare(b.de || '')).forEach(c => {
+        const searchEl = document.getElementById('cards-search');
+        const q = ((searchEl && searchEl.value) || '').trim().toLowerCase();
+        let rows = allCards.slice().sort((a, b) => (a.de || '').localeCompare(b.de || ''));
+        if (q) {
+            rows = rows.filter(c =>
+                ((c.de || '') + ' ' + (c.en || '') + ' ' + (c.emoji || '') + ' ' +
+                 (c.ex_de || '') + ' ' + (c.hint || '')).toLowerCase().includes(q));
+            if (countEl) countEl.textContent = rows.length + ' of ' + allCards.length;
+        }
+        if (!rows.length) { wrap.textContent = 'No cards match “' + q + '”.'; return; }
+
+        rows.forEach(c => {
             const row = document.createElement('div');
             row.className = 'card-row';
 
