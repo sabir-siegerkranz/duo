@@ -401,6 +401,18 @@
         .explain-view .ex-en { font-size: 13px; color: #94a3b8; }
         .explain-foot { margin-top: 18px; font-size: 11px; color: #cbd5e1; text-align: center; }
 
+        .drill-choice {
+            text-align: left; background: #f8fafc; color: var(--text);
+            border: 2px solid #e2e8f0; font-weight: 500;
+        }
+        .drill-choice.correct { border-color: var(--success); background: #eafff1; color: #16a34a; }
+        .drill-choice.wrong { border-color: var(--danger); background: #fff0f1; color: var(--danger); }
+        .drill-choice:disabled { opacity: 1; }
+        #drill-feedback.ok { color: #16a34a; font-weight: 600; }
+        #drill-feedback.bad { color: var(--danger); font-weight: 600; }
+        #drill-input.ok { border-color: var(--success); background: #eafff1; }
+        #drill-input.bad { border-color: var(--danger); background: #fff0f1; }
+
         #grammar-box { margin: 4px 0 14px; }
         #btn-grammar { background: #eef2ff; color: var(--primary); font-size: 13px; padding: 9px; }
         #grammar-out { margin-top: 10px; }
@@ -534,6 +546,7 @@
                 </div>
             </div>
             <button id="play-btn" style="background-color: var(--success); padding: 14px; font-size: 16px;" onclick="startPracticeFromHome()">▶ Play Deck</button>
+            <button style="margin-top: 8px; background-color: #8b5cf6;" onclick="startDrill()">✏️ Practice</button>
             <button style="margin-top: 8px; background-color: #718096;" onclick="openAddCardModal()">+ Add Cards</button>
             <button style="margin-top: 8px; background-color: #94a3b8;" onclick="openManageCards()">☰ Manage Cards</button>
         </div>
@@ -596,6 +609,31 @@
                 🎉 All cards in this deck completed!
             </div>
         </div>
+    </div>
+
+    <!-- PRACTICE (DRILL) VIEW — fill-in-the-blank / pick-the-form exercises,
+         built from the active deck's own cards. Doesn't touch SRS state. -->
+    <div id="view-drill" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="card-box header">
+            <button style="width: auto; padding: 6px 12px; background-color: #a0aec0;" onclick="exitDrillToHome()">← Exit</button>
+            <div style="font-weight: bold;">✏️ Practice</div>
+            <div id="drill-progress" style="font-size: 13px; color: #64748b;"></div>
+        </div>
+        <div class="card-box" id="drill-card">
+            <div id="drill-prompt" class="de-pick" style="font-size: 18px; line-height: 1.5; margin-bottom: 16px;"></div>
+            <input type="text" id="drill-input" placeholder="Type the missing word…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <div id="drill-choices" class="hidden" style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;"></div>
+            <div id="drill-feedback" style="margin-top: 12px; font-size: 14px; min-height: 20px;"></div>
+            <button id="drill-check" style="margin-top: 12px;" onclick="submitDrillAnswer()">Check</button>
+            <button id="drill-next" class="hidden" style="margin-top: 12px; background-color: var(--success);" onclick="nextDrillQuestion()">Next →</button>
+        </div>
+        <div class="card-box hidden" id="drill-summary" style="text-align: center;">
+            <div style="font-size: 40px;">🎯</div>
+            <div id="drill-summary-text" style="font-size: 18px; font-weight: 700; margin: 8px 0 16px;"></div>
+            <button style="background-color: #8b5cf6;" onclick="startDrill()">↻ Practice again</button>
+            <button style="margin-top: 8px; background-color: #718096;" onclick="exitDrillToHome()">Done</button>
+        </div>
+        <div class="card-box hidden" id="drill-empty" style="text-align: center; color: #64748b;"></div>
     </div>
 
     <!-- ADD / EDIT CARD VIEW -->
@@ -734,9 +772,13 @@
     let settingsDeckId = null;
     let statsRows = [];
     let bulkItems = [];          // pending rows in the bulk-add review list
+    let drillQueue = [];         // Practice (drill) session questions
+    let drillIdx = 0;
+    let drillScore = { correct: 0, total: 0 };
+    let drillAnswered = false;   // current question graded, waiting for "Next"
     let lastFocused = 'de';
 
-    const VIEWS = ['view-login', 'view-home', 'view-game', 'view-add', 'view-cards', 'view-deck-settings'];
+    const VIEWS = ['view-login', 'view-home', 'view-game', 'view-drill', 'view-add', 'view-cards', 'view-deck-settings'];
     function showView(id) {
         VIEWS.forEach(v => {
             const el = document.getElementById(v);
@@ -1203,6 +1245,159 @@
 
         const playBtn = document.getElementById('play-btn');
         if (playBtn) playBtn.textContent = '▶ Play Deck';
+    }
+
+    // ------------------------------------------------------------------
+    // Practice (drill) — fill-in-the-blank / pick-the-form exercises built
+    // from the active deck's own cards. Separate from the SRS flashcard
+    // session: doesn't touch reps/interval/streak/goal, purely reinforcement.
+    // ------------------------------------------------------------------
+    function normalizeDe(s) {
+        return (s || '').trim().toLowerCase().replace(/[.,!?;:„“"'’]/g, '').replace(/ß/g, 'ss');
+    }
+
+    // Standard decks: cloze (type the blanked word) from cards with an example
+    // sentence, reusing clozeAnswer(). Free decks (no example sentences, e.g.
+    // "Verbs in Perfekt"): multiple-choice, infinitive -> Perfekt form, with
+    // distractors drawn from the deck's other cards.
+    function buildDrillSet() {
+        const deck = decks.find(d => d.id == activeDeckId);
+        if (!deck) return [];
+        if (deck.type === 'free') {
+            const pool = allCards.filter(c => c.de && c.en);
+            if (pool.length < 4) return [];
+            return shuffleArr(pool.slice()).slice(0, 15).map(c => {
+                const distractors = shuffleArr(pool.filter(x => x.id !== c.id)).slice(0, 3).map(x => x.en);
+                return { card: c, kind: 'mc', options: shuffleArr([c.en, ...distractors]), answer: c.en };
+            });
+        }
+        const items = [];
+        allCards.forEach(c => {
+            const hint = c.ex_de || c.hint || '';
+            if (!hint || !c.de) return;
+            const ca = clozeAnswer(hint, c.de);
+            if (ca) items.push({ card: c, kind: 'cloze', prompt: ca.blanked, answer: ca.answer, translation: c.en || '' });
+        });
+        return shuffleArr(items).slice(0, 15);
+    }
+
+    function startDrill() {
+        if (!activeDeckId) return showToast('Select a deck first', true);
+        const deck = decks.find(d => d.id == activeDeckId);
+        drillQueue = buildDrillSet();
+        drillIdx = 0;
+        drillScore = { correct: 0, total: drillQueue.length };
+        document.getElementById('drill-summary').classList.add('hidden');
+        const empty = document.getElementById('drill-empty');
+        if (!drillQueue.length) {
+            document.getElementById('drill-card').classList.add('hidden');
+            empty.textContent = deck && deck.type === 'free'
+                ? 'Need at least 4 cards in this deck to build multiple-choice questions.'
+                : 'No cards with example sentences yet — add some examples first.';
+            empty.classList.remove('hidden');
+        } else {
+            document.getElementById('drill-card').classList.remove('hidden');
+            empty.classList.add('hidden');
+        }
+        showView('view-drill');
+        renderDrillQuestion();
+    }
+
+    function renderDrillQuestion() {
+        if (drillIdx >= drillQueue.length) { if (drillQueue.length) showDrillSummary(); return; }
+        const item = drillQueue[drillIdx];
+        drillAnswered = false;
+        document.getElementById('drill-progress').textContent = (drillIdx + 1) + ' / ' + drillQueue.length;
+        const fb = document.getElementById('drill-feedback');
+        fb.textContent = ''; fb.className = '';
+        document.getElementById('drill-next').classList.add('hidden');
+
+        const promptEl = document.getElementById('drill-prompt');
+        const input = document.getElementById('drill-input');
+        const choicesEl = document.getElementById('drill-choices');
+        const checkBtn = document.getElementById('drill-check');
+        input.value = ''; input.className = ''; input.readOnly = false;
+
+        if (item.kind === 'cloze') {
+            promptEl.textContent = item.prompt;
+            input.classList.remove('hidden');
+            choicesEl.classList.add('hidden');
+            choicesEl.textContent = '';
+            checkBtn.classList.remove('hidden');
+            checkBtn.disabled = false;
+            input.onkeydown = (e) => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                if (!drillAnswered) submitDrillAnswer(); else nextDrillQuestion();
+            };
+            setTimeout(() => input.focus(), 50);
+        } else {
+            promptEl.textContent = item.card.de;
+            input.classList.add('hidden');
+            checkBtn.classList.add('hidden');
+            choicesEl.classList.remove('hidden');
+            choicesEl.textContent = '';
+            item.options.forEach(opt => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'drill-choice';
+                b.textContent = opt;
+                b.onclick = () => chooseDrillOption(opt, b);
+                choicesEl.appendChild(b);
+            });
+        }
+    }
+
+    function submitDrillAnswer() {
+        if (drillAnswered) return;
+        const item = drillQueue[drillIdx];
+        if (!item || item.kind !== 'cloze') return;
+        const input = document.getElementById('drill-input');
+        if (!input.value.trim()) return;
+        const correct = normalizeDe(input.value) === normalizeDe(item.answer);
+        drillAnswered = true;
+        drillScore.correct += correct ? 1 : 0;
+        input.classList.add(correct ? 'ok' : 'bad');
+        input.readOnly = true;
+        const fb = document.getElementById('drill-feedback');
+        fb.className = correct ? 'ok' : 'bad';
+        fb.textContent = (correct ? '✓ Correct!' : '✗ ' + item.answer) + (item.translation ? ' — ' + item.translation : '');
+        document.getElementById('drill-check').classList.add('hidden');
+        document.getElementById('drill-next').classList.remove('hidden');
+    }
+
+    function chooseDrillOption(opt, btn) {
+        if (drillAnswered) return;
+        const item = drillQueue[drillIdx];
+        drillAnswered = true;
+        const correct = opt === item.answer;
+        drillScore.correct += correct ? 1 : 0;
+        document.querySelectorAll('#drill-choices .drill-choice').forEach(b => {
+            b.disabled = true;
+            if (b.textContent === item.answer) b.classList.add('correct');
+            else if (b === btn && !correct) b.classList.add('wrong');
+        });
+        const fb = document.getElementById('drill-feedback');
+        fb.className = correct ? 'ok' : 'bad';
+        fb.textContent = correct ? '✓ Correct!' : '✗ Correct answer: ' + item.answer;
+        document.getElementById('drill-next').classList.remove('hidden');
+    }
+
+    function nextDrillQuestion() {
+        drillIdx++;
+        renderDrillQuestion();
+    }
+
+    function showDrillSummary() {
+        document.getElementById('drill-card').classList.add('hidden');
+        document.getElementById('drill-summary').classList.remove('hidden');
+        const pct = drillScore.total ? Math.round(100 * drillScore.correct / drillScore.total) : 0;
+        document.getElementById('drill-summary-text').textContent =
+            drillScore.correct + ' / ' + drillScore.total + ' correct (' + pct + '%)';
+    }
+
+    function exitDrillToHome() {
+        showView('view-home');
     }
 
     // ------------------------------------------------------------------
@@ -2137,6 +2332,24 @@
             const re = new RegExp('\\b' + esc + '\\w{0,3}\\b', 'i');
             return re.test(hint) ? hint.replace(re, '____') : hint;
         }
+    }
+
+    // Recover what clozeHint() actually blanked, by diffing its output against
+    // the original sentence — reuses clozeHint's matching logic exactly instead
+    // of reimplementing it, and doubles as a filter: no blank (hint === blanked)
+    // or more than one blank (the separable-verb "stem ... particle" case) both
+    // come back null, since neither is answerable with one typed word.
+    function clozeAnswer(hint, germanWord) {
+        const blanked = clozeHint(hint, germanWord);
+        if (!blanked || blanked === hint) return null;
+        const parts = blanked.split('____');
+        if (parts.length !== 2) return null;
+        const [pre, post] = parts;
+        if (!hint.startsWith(pre)) return null;
+        const rest = hint.slice(pre.length);
+        if (post && !rest.endsWith(post)) return null;
+        const answer = post ? rest.slice(0, rest.length - post.length) : rest;
+        return answer.trim() ? { blanked, answer: answer.trim() } : null;
     }
 
     let currentGermanText = '';
