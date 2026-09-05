@@ -402,6 +402,12 @@
         .explain-foot { margin-top: 18px; font-size: 11px; color: #cbd5e1; text-align: center; }
 
         #drill-hint-btn:disabled { opacity: 0.4; }
+        #drill-explain {
+            margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+            background: #f8fafc; border-left: 3px solid var(--primary);
+            font-size: 13px; line-height: 1.5; color: #475569;
+        }
+        #drill-explain.loading { color: #94a3b8; font-style: italic; border-left-color: #cbd5e1; }
         #drill-feedback.ok { color: #16a34a; font-weight: 600; }
         #drill-feedback.bad { color: var(--danger); font-weight: 600; }
         #drill-input.ok { border-color: var(--success); background: #eafff1; }
@@ -621,6 +627,7 @@
                 <span id="drill-hint-text" style="font-size: 13px; color: #64748b; margin-left: 6px;"></span>
             </div>
             <div id="drill-feedback" style="margin-top: 12px; font-size: 14px; min-height: 20px;"></div>
+            <div id="drill-explain" class="de-pick hidden"></div>
             <button id="drill-check" style="margin-top: 12px;" onclick="submitDrillAnswer()">Check</button>
             <button id="drill-next" class="hidden" style="margin-top: 12px; background-color: var(--success);" onclick="nextDrillQuestion()">Next →</button>
         </div>
@@ -773,6 +780,7 @@
     let drillIdx = 0;
     let drillScore = { correct: 0, total: 0 };
     let drillAnswered = false;   // current question graded, waiting for "Next"
+    let drillChecking = false;   // answer submitted, waiting on the grader
     let drillRenderGen = 0;      // bumped on nav/exit to invalidate in-flight async question resolves
     let lastFocused = 'de';
 
@@ -1356,9 +1364,12 @@
         }
 
         drillAnswered = false;
+        drillChecking = false;
         document.getElementById('drill-progress').textContent = (drillIdx + 1) + ' / ' + drillQueue.length;
         const fb = document.getElementById('drill-feedback');
         fb.textContent = ''; fb.className = '';
+        const ex = document.getElementById('drill-explain');
+        ex.textContent = ''; ex.className = 'de-pick hidden';
         document.getElementById('drill-next').classList.add('hidden');
 
         const promptEl = document.getElementById('drill-prompt');
@@ -1389,6 +1400,8 @@
         document.getElementById('drill-next').classList.add('hidden');
         document.getElementById('drill-hint-btn').classList.add('hidden');
         document.getElementById('drill-hint-text').textContent = '';
+        const ex = document.getElementById('drill-explain');
+        ex.textContent = ''; ex.className = 'de-pick hidden';
         document.getElementById('drill-progress').textContent = loading ? '' : document.getElementById('drill-progress').textContent;
     }
 
@@ -1399,22 +1412,72 @@
         document.getElementById('drill-hint-btn').disabled = true;
     }
 
-    function submitDrillAnswer() {
-        if (drillAnswered) return;
+    // Grading: an exact (normalised) match is instantly correct. Anything else
+    // goes to the "drill_check" grader, which accepts a grammatically correct,
+    // idiomatic form of the SAME verb and rejects different verbs / non-idiomatic
+    // paraphrases. The grader also returns the "why", shown after every answer.
+    async function submitDrillAnswer() {
+        if (drillAnswered || drillChecking) return;
         const item = drillQueue[drillIdx];
         if (!item) return;
         const input = document.getElementById('drill-input');
-        if (!input.value.trim()) return;
-        const correct = normalizeDe(input.value) === normalizeDe(item.answer);
-        drillAnswered = true;
-        drillScore.correct += correct ? 1 : 0;
-        input.classList.add(correct ? 'ok' : 'bad');
+        const typed = input.value;
+        if (!typed.trim()) return;
+
         input.readOnly = true;
         document.getElementById('drill-hint-btn').disabled = true;
+        document.getElementById('drill-check').classList.add('hidden');
+        const fb = document.getElementById('drill-feedback');
+        const exact = normalizeDe(typed) === normalizeDe(item.answer);
+        const myGen = drillRenderGen;
+
+        if (exact) {
+            drillAnswered = true;
+            markDrillResult(true, item, input);
+        } else {
+            drillChecking = true;
+            fb.className = ''; fb.textContent = 'Checking…';
+        }
+
+        const el = document.getElementById('drill-explain');
+        el.className = 'de-pick loading';
+        el.textContent = exact ? 'Explanation…' : 'Checking your answer…';
+
+        let verdict = exact;
+        let explanation = '';
+        try {
+            const d = await assistFetch('drill_check', {
+                text: item.prompt + '|' + normalizeDe(item.answer) + '|' + normalizeDe(typed),
+                sentence: item.prompt,
+                answer: item.answer,
+                attempt: exact ? '' : typed,
+                term: item.card.de,
+                meaning: item.card.en || item.card.hint || ''
+            });
+            if (myGen !== drillRenderGen) return;   // moved on
+            if (!exact) verdict = !!(d && d.correct);
+            explanation = (d && d.explanation) || '';
+        } catch (e) {
+            if (myGen !== drillRenderGen) return;
+            // grader unreachable -> fall back to strict exact match
+        }
+
+        if (!exact) {
+            drillChecking = false;
+            drillAnswered = true;
+            markDrillResult(verdict, item, input);
+        }
+        if (explanation) { el.className = 'de-pick'; el.textContent = explanation; }
+        else el.className = 'de-pick hidden';
+    }
+
+    function markDrillResult(correct, item, input) {
+        drillScore.correct += correct ? 1 : 0;
+        input.classList.remove('ok', 'bad');
+        input.classList.add(correct ? 'ok' : 'bad');
         const fb = document.getElementById('drill-feedback');
         fb.className = correct ? 'ok' : 'bad';
         fb.textContent = (correct ? '✓ Correct!' : '✗ ' + item.answer) + (item.translation ? ' — ' + item.translation : '');
-        document.getElementById('drill-check').classList.add('hidden');
         document.getElementById('drill-next').classList.remove('hidden');
     }
 
