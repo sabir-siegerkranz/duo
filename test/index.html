@@ -620,7 +620,7 @@
             <div id="drill-progress" style="font-size: 13px; color: #64748b;"></div>
         </div>
         <div class="card-box" id="drill-card">
-            <div id="drill-prompt" class="de-pick" style="font-size: 18px; line-height: 1.5; margin-bottom: 16px;"></div>
+            <div id="drill-prompt" style="font-size: 18px; line-height: 1.5; margin-bottom: 16px;"></div>
             <input type="text" id="drill-input" placeholder="Type the missing word…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
             <div id="drill-hint-row" style="margin-top: 8px;">
                 <button type="button" id="drill-hint-btn" style="width: auto; padding: 6px 10px; background: #eef2ff; color: var(--primary); font-size: 12px;" onclick="revealDrillHint()">💡 Hint</button>
@@ -1284,18 +1284,29 @@
         return sentence.replace(re, '$1____');
     }
 
+    // Practice only drills words the user has actually started learning —
+    // cards promoted out of the learning phase (reps >= 1), i.e. the
+    // "Practiced" / "Learned" buckets. Falls back to "any progress" only if
+    // too few qualify, so a session is never starved.
+    function drillPool() {
+        const promoted = allCards.filter(c => Number(c.reps) >= 1);
+        if (promoted.length >= 8) return promoted;
+        return allCards.filter(c => Number(c.reps) >= 1 || Number(c.learn_streak) >= 1);
+    }
+
     function buildDrillSet() {
         const deck = decks.find(d => d.id == activeDeckId);
         if (!deck) return [];
+        const pool = drillPool();
         if (deck.type === 'free') {
-            return shuffleArr(allCards.filter(c => c.de && splitPerfekt(c.en)).slice()).slice(0, 15)
+            return shuffleArr(pool.filter(c => c.de && splitPerfekt(c.en)).slice()).slice(0, 15)
                 .map(c => {
                     const sp = splitPerfekt(c.en);
                     return { card: c, pending: true, aux: sp.aux, participle: sp.participle, translation: c.hint || '' };
                 });
         }
         const items = [];
-        allCards.forEach(c => {
+        pool.forEach(c => {
             const hint = c.ex_de || c.hint || '';
             if (!hint || !c.de) return;
             const ca = clozeAnswer(hint, c.de);
@@ -1334,9 +1345,8 @@
         const empty = document.getElementById('drill-empty');
         if (!drillQueue.length) {
             document.getElementById('drill-card').classList.add('hidden');
-            empty.textContent = deck && deck.type === 'free'
-                ? 'No cards with a recognisable Perfekt form (hat/ist ...) yet.'
-                : 'No cards with example sentences yet — add some examples first.';
+            empty.textContent = 'Nothing to practise yet — Practice draws from words you\'ve already ' +
+                'started learning (the Practiced / Learned buckets). Play this deck a bit first.';
             empty.classList.remove('hidden');
         } else {
             document.getElementById('drill-card').classList.remove('hidden');
