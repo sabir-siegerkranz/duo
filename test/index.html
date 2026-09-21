@@ -1299,9 +1299,9 @@
         if (!deck) return [];
         const pool = drillPool();
         if (deck.type === 'free') {
-            return shuffleArr(pool.filter(c => c.de && splitPerfekt(c.en)).slice()).slice(0, 15)
+            return shuffleArr(pool.filter(c => c.en && splitPerfekt(c.de)).slice()).slice(0, 15)
                 .map(c => {
-                    const sp = splitPerfekt(c.en);
+                    const sp = splitPerfekt(c.de);
                     return { card: c, pending: true, aux: sp.aux, participle: sp.participle, translation: c.hint || '' };
                 });
         }
@@ -1322,7 +1322,7 @@
         try {
             // assistFetch's client-side cache key is derived from payload.term — include it
             // (in addition to infinitive/aux/participle) so different verbs don't collide.
-            const d = await assistFetch('verb_sentence', { term: item.card.de, infinitive: item.card.de, aux: item.aux, participle: item.participle });
+            const d = await assistFetch('verb_sentence', { term: item.card.en, infinitive: item.card.en, aux: item.aux, participle: item.participle });
             if (!d || !d.sentence) return false;
             const blanked = blankWord(blankWord(d.sentence, item.aux), item.participle);
             if ((blanked.match(/____/g) || []).length !== 2) return false;
@@ -1461,8 +1461,8 @@
                 sentence: item.prompt,
                 answer: item.answer,
                 attempt: exact ? '' : typed,
-                term: item.card.de,
-                meaning: item.card.en || item.card.hint || ''
+                term: item.card.en,
+                meaning: item.card.hint || item.card.en || ''
             });
             if (myGen !== drillRenderGen) return;   // moved on
             if (!exact) verdict = !!(d && d.correct);
